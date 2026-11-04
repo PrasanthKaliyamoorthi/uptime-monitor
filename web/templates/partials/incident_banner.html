@@ -1,0 +1,38 @@
+{{ define "incident_banner" }}
+{{ if .Incidents }}
+<div class="space-y-4 mb-8">
+  {{ range .Incidents }}
+  <div class="card p-5 border-l-4 {{ if eq .Severity "critical" }}border-l-red-500 bg-red-500/5{{ else if eq .Severity "major" }}border-l-orange-500 bg-orange-500/5{{ else if eq .Severity "maintenance" }}border-l-blue-500 bg-blue-500/5{{ else }}border-l-yellow-500 bg-yellow-500/5{{ end }}">
+    <div class="flex items-start justify-between gap-4">
+      <div>
+        <div class="flex items-center gap-2 mb-1">
+          <span class="text-xs uppercase font-bold tracking-wider px-2 py-0.5 rounded {{ if eq .Severity "critical" }}bg-red-500/20 text-red-400{{ else if eq .Severity "major" }}bg-orange-500/20 text-orange-400{{ else if eq .Severity "maintenance" }}bg-blue-500/20 text-blue-400{{ else }}bg-yellow-500/20 text-yellow-400{{ end }}">
+            {{ if .IsMaintenance }}Maintenance{{ else }}{{ .Severity }} Incident{{ end }}
+          </span>
+          <span class="text-xs text-[var(--text-muted)] font-mono uppercase">Status: {{ .Status }}</span>
+        </div>
+        <h3 class="text-base font-semibold text-[var(--text-main)]">{{ .Title }}</h3>
+      </div>
+      <div class="text-xs text-[var(--text-muted)] whitespace-nowrap">
+        {{ .CreatedAt.Format "Jan 02, 15:04 UTC" }}
+      </div>
+    </div>
+
+    {{ if .Updates }}
+    <div class="mt-4 pt-3 border-t border-[var(--border-color)] space-y-3">
+      {{ range .Updates }}
+      <div class="text-sm">
+        <div class="flex items-center gap-2 mb-0.5">
+          <span class="text-xs font-semibold capitalize text-[var(--text-main)]">{{ .Status }}</span>
+          <span class="text-xs text-[var(--text-muted)]">&bull; {{ .CreatedAt.Format "Jan 02, 15:04 UTC" }}</span>
+        </div>
+        <div class="text-[var(--text-muted)] leading-relaxed">{{ .Message }}</div>
+      </div>
+      {{ end }}
+    </div>
+    {{ end }}
+  </div>
+  {{ end }}
+</div>
+{{ end }}
+{{ end }}

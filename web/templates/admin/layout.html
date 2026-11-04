@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="openstatus-slate" style="background-color: #0b0f17;">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ if .Title }}{{ .Title }} &bull; Admin{{ else }}Admin Dashboard{{ end }}</title>
+  <!-- Embedded Tailwind CSS JIT -->
+  <script src="/static/js/tailwind.min.js"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            themeBase: 'var(--bg-base)',
+            themeCard: 'var(--bg-card)',
+            themeSubtle: 'var(--bg-subtle)',
+            themeText: 'var(--text-main)',
+            themeMuted: 'var(--text-muted)',
+            themeBorder: 'var(--border-color)',
+            themeAccent: 'var(--accent)',
+            statusUp: 'var(--color-up)',
+            statusDegraded: 'var(--color-degraded)',
+            statusDown: 'var(--color-down)',
+          }
+        }
+      }
+    }
+  </script>
+  <link rel="stylesheet" href="/static/css/app.css">
+  <script src="/static/js/htmx.min.js"></script>
+</head>
+<body class="min-h-screen flex flex-col bg-[var(--bg-base)] text-[var(--text-main)]">
+  <!-- Top Admin Navbar -->
+  <header class="border-b border-[var(--border-color)] bg-[var(--bg-card)] sticky top-0 z-40">
+    <div class="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
+      <div class="flex items-center gap-6">
+        <a href="/admin" class="flex items-center gap-2.5 font-bold text-base text-[var(--text-main)]">
+          <div class="w-6 h-6 rounded bg-emerald-500/20 text-emerald-400 flex items-center justify-center border border-emerald-500/30 text-xs">
+            &#9650;
+          </div>
+          <span>Uptime Admin</span>
+        </a>
+
+        <nav class="hidden md:flex items-center gap-1 text-xs font-medium">
+          <a href="/admin" class="px-3 py-1.5 rounded-md hover:bg-[var(--bg-subtle)] transition-colors {{ if eq .ActiveTab "dashboard" }}bg-[var(--bg-subtle)] text-emerald-400 font-semibold{{ else }}text-[var(--text-muted)]{{ end }}">
+            Dashboard
+          </a>
+          <a href="/admin/monitors" class="px-3 py-1.5 rounded-md hover:bg-[var(--bg-subtle)] transition-colors {{ if eq .ActiveTab "monitors" }}bg-[var(--bg-subtle)] text-emerald-400 font-semibold{{ else }}text-[var(--text-muted)]{{ end }}">
+            Monitors & Heartbeats
+          </a>
+          <a href="/admin/webhooks" class="px-3 py-1.5 rounded-md hover:bg-[var(--bg-subtle)] transition-colors {{ if eq .ActiveTab "webhooks" }}bg-[var(--bg-subtle)] text-emerald-400 font-semibold{{ else }}text-[var(--text-muted)]{{ end }}">
+            Alert Webhooks
+          </a>
+          <a href="/admin/logs" class="px-3 py-1.5 rounded-md hover:bg-[var(--bg-subtle)] transition-colors {{ if eq .ActiveTab "logs" }}bg-[var(--bg-subtle)] text-emerald-400 font-semibold{{ else }}text-[var(--text-muted)]{{ end }}">
+            Logs & Telemetry
+          </a>
+          <a href="/admin/settings" class="px-3 py-1.5 rounded-md hover:bg-[var(--bg-subtle)] transition-colors {{ if eq .ActiveTab "settings" }}bg-[var(--bg-subtle)] text-emerald-400 font-semibold{{ else }}text-[var(--text-muted)]{{ end }}">
+            Settings
+          </a>
+        </nav>
+      </div>
+
+      <div class="flex items-center gap-3">
+        <a href="/admin/pages/new" class="btn-primary text-xs py-1.5 px-3 flex items-center gap-1.5 font-semibold">
+          <span>+ Create Status Page</span>
+        </a>
+        <a href="/" target="_blank" class="text-xs text-[var(--text-muted)] hover:text-[var(--text-main)] flex items-center gap-1 px-2.5 py-1.5 rounded border border-[var(--border-color)]">
+          <span>View Public Page</span> &nearr;
+        </a>
+        <form method="POST" action="/admin/logout" class="inline">
+          <button type="submit" class="text-xs text-red-400 hover:text-red-300 px-2.5 py-1.5 rounded border border-red-500/20 hover:bg-red-500/10 transition-colors">
+            Logout
+          </button>
+        </form>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-6xl mx-auto px-4 py-8 w-full flex-1">
+    {{ template "admin_content" . }}
+  </main>
+</body>
+</html>

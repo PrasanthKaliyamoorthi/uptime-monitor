@@ -1,0 +1,51 @@
+{{ define "admin_content" }}
+<div class="max-w-2xl mx-auto space-y-8">
+  <div>
+    <h2 class="text-xl font-bold text-[var(--text-main)]">Backup & Versioned Migration</h2>
+    <p class="text-xs text-[var(--text-muted)] mt-0.5">Export your entire system configuration (monitors, status pages, mappings, webhooks) into a versioned JSON bundle, or restore from a previous backup.</p>
+  </div>
+
+  {{ if .Message }}
+  <div class="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs">
+    {{ .Message }}
+  </div>
+  {{ end }}
+  {{ if .Error }}
+  <div class="p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-xs">
+    {{ .Error }}
+  </div>
+  {{ end }}
+
+  <!-- Export Section -->
+  <div class="card p-6 space-y-3">
+    <h3 class="text-base font-bold text-[var(--text-main)]">Export Configuration</h3>
+    <p class="text-xs text-[var(--text-muted)] leading-relaxed">
+      Download an export payload containing all configured monitors, status page domain bindings, themes, and alert webhooks with schema version <code>v1</code>.
+    </p>
+    <div class="pt-2">
+      <a href="/admin/backup/export" download="uptime-backup-v1.json" class="btn-primary inline-flex items-center gap-2 text-xs">
+        <span>&darr;</span> Download Backup (v1 JSON)
+      </a>
+    </div>
+  </div>
+
+  <!-- Import Section -->
+  <div class="card p-6 space-y-4">
+    <h3 class="text-base font-bold text-[var(--text-main)]">Restore / Import Configuration</h3>
+    <p class="text-xs text-[var(--text-muted)] leading-relaxed">
+      Upload a valid backup file. The system will verify backward compatibility and restore missing monitors, status pages, and webhooks.
+    </p>
+
+    <form method="POST" action="/admin/backup/import" enctype="multipart/form-data" class="space-y-4 text-xs">
+      <div>
+        <input type="file" name="backup_file" accept=".json,application/json" required
+               class="block w-full text-xs text-[var(--text-muted)] file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-[var(--bg-subtle)] file:text-[var(--text-main)] hover:file:bg-[var(--border-color)]">
+      </div>
+
+      <button type="submit" class="px-4 py-2 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-lg text-[var(--text-main)] font-medium hover:bg-[var(--border-color)] transition-colors">
+        Upload and Restore Configuration &rarr;
+      </button>
+    </form>
+  </div>
+</div>
+{{ end }}

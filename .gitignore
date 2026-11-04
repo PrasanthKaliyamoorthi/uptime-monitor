@@ -1,0 +1,21 @@
+# Binaries
+uptime-monitor
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# SQLite runtime databases
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+data/
+
+# OS / Editor files
+.DS_Store
+*.swp
+
+screenshots/
+./screenshots/

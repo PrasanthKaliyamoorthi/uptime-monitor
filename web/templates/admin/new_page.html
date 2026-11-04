@@ -1,0 +1,126 @@
+{{ define "admin_content" }}
+<div class="max-w-2xl mx-auto space-y-6">
+  <!-- Breadcrumb -->
+  <div class="flex items-center gap-2 text-xs text-[var(--text-muted)]">
+    <a href="/admin" class="hover:text-[var(--text-main)] flex items-center gap-1">&larr; Dashboard</a>
+    <span>/</span>
+    <span class="text-[var(--text-main)] font-semibold">New Status Page</span>
+  </div>
+
+  <div class="card p-8 border border-[var(--border-color)] space-y-6">
+    <div class="border-b border-[var(--border-color)] pb-4">
+      <h2 class="text-xl font-bold text-[var(--text-main)]">Create Status Page Tenant</h2>
+      <p class="text-xs text-[var(--text-muted)] mt-1 leading-relaxed">
+        Each status page acts as an isolated tenant or service domain. After creating the page, you can configure its dedicated monitoring endpoints, incident reports, custom theme, and domain routing.
+      </p>
+    </div>
+
+    {{ if .Error }}
+    <div class="p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-xs">
+      {{ .Error }}
+    </div>
+    {{ end }}
+
+    <form method="POST" action="/admin/pages" enctype="multipart/form-data" class="space-y-5 text-xs">
+      <div>
+        <label class="block font-semibold text-[var(--text-muted)] uppercase tracking-wider mb-1.5">
+          Status Page Title / Tenant Name <span class="text-red-400">*</span>
+        </label>
+        <input type="text" name="name" value="{{ .Name }}" required placeholder="e.g. Git Infrastructure Status, Terminal Services" 
+               class="w-full px-3.5 py-2.5 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-lg text-[var(--text-main)] focus:outline-none focus:border-emerald-500/60 transition-colors">
+        <span class="text-[11px] text-[var(--text-muted)] mt-1 block">The public-facing brand or service title displayed at the top of the status page.</span>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+          <label class="block font-semibold text-[var(--text-muted)] uppercase tracking-wider mb-1.5">
+            URL Slug <span class="text-red-400">*</span>
+          </label>
+          <input type="text" name="slug" value="{{ .Slug }}" required placeholder="e.g. git, api, core" 
+                 class="w-full px-3.5 py-2.5 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-lg text-[var(--text-main)] font-mono focus:outline-none focus:border-emerald-500/60 transition-colors">
+          <span class="text-[11px] text-[var(--text-muted)] mt-1 block">Used for direct path routing: <code class="text-emerald-400">/status?page=&lt;slug&gt;</code></span>
+        </div>
+        <div>
+          <label class="block font-semibold text-[var(--text-muted)] uppercase tracking-wider mb-1.5">
+            Custom Host / Domain <span class="text-[var(--text-muted)] font-normal">(Optional)</span>
+          </label>
+          <input type="text" name="domain" value="{{ .Domain }}" placeholder="e.g. status.git.com, status.terminal.in" 
+                 class="w-full px-3.5 py-2.5 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-lg text-[var(--text-main)] font-mono focus:outline-none focus:border-emerald-500/60 transition-colors">
+          <span class="text-[11px] text-[var(--text-muted)] mt-1 block">Requests with this <code class="text-emerald-400">Host</code> header will automatically display this page. Leave blank if not using custom domain.</span>
+        </div>
+      </div>
+
+      <div>
+        <label class="block font-semibold text-[var(--text-muted)] uppercase tracking-wider mb-1.5">
+          Description <span class="text-[var(--text-muted)] font-normal">(Optional)</span>
+        </label>
+        <textarea name="description" rows="3" placeholder="Real-time uptime, incident alerts, and operational metrics for our infrastructure." 
+                  class="w-full px-3.5 py-2.5 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-lg text-[var(--text-main)] focus:outline-none focus:border-emerald-500/60 transition-colors">{{ .Description }}</textarea>
+      </div>
+
+      <div>
+        <label class="block font-semibold text-[var(--text-muted)] uppercase tracking-wider mb-1.5">
+          Brand Logo <span class="text-[var(--text-muted)] font-normal">(Optional File Upload or Image URL)</span>
+        </label>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <span class="text-[11px] text-[var(--text-muted)] mb-1 block">Upload image file (PNG, SVG, JPG, WebP):</span>
+            <input type="file" name="logo_file" accept="image/*" class="w-full text-xs text-[var(--text-muted)] file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-[var(--bg-subtle)] file:text-[var(--text-main)] hover:file:bg-[var(--border-color)]">
+          </div>
+          <div>
+            <span class="text-[11px] text-[var(--text-muted)] mb-1 block">Or paste image URL:</span>
+            <input type="text" name="logo_url" value="{{ .LogoURL }}" placeholder="https://example.com/logo.png" 
+                   class="w-full px-3.5 py-2 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-lg text-[var(--text-main)] text-xs focus:outline-none focus:border-emerald-500/60 transition-colors">
+          </div>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+          <label class="block font-semibold text-[var(--text-muted)] uppercase tracking-wider mb-1.5">
+            Preset Theme <span class="text-red-400">*</span>
+          </label>
+          <select name="theme" class="w-full px-3.5 py-2.5 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-lg text-[var(--text-main)] focus:outline-none focus:border-emerald-500/60 transition-colors">
+            <option value="openstatus-slate" {{ if or (eq .Theme "openstatus-slate") (not .Theme) }}selected{{ end }}>OpenStatus Slate (Default sleek dark slate)</option>
+            <option value="catppuccin-mocha" {{ if eq .Theme "catppuccin-mocha" }}selected{{ end }}>Catppuccin Mocha (Dark soothing pastel)</option>
+            <option value="catppuccin-latte" {{ if eq .Theme "catppuccin-latte" }}selected{{ end }}>Catppuccin Latte (Clean light warm)</option>
+            <option value="tokyo-night" {{ if eq .Theme "tokyo-night" }}selected{{ end }}>Tokyo Night (Deep indigo blue)</option>
+            <option value="nord" {{ if eq .Theme "nord" }}selected{{ end }}>Nord (Arctic cool slate)</option>
+            <option value="dracula" {{ if eq .Theme "dracula" }}selected{{ end }}>Dracula (Vibrant high contrast dark)</option>
+          </select>
+          <span class="text-[11px] text-[var(--text-muted)] mt-1 block">Can be adjusted at any time in the page workspace settings.</span>
+        </div>
+        <div>
+          <label class="block font-semibold text-[var(--text-muted)] uppercase tracking-wider mb-1.5">
+            History Window to Monitor & Show <span class="text-red-400">*</span>
+          </label>
+          <select name="history_days" class="w-full px-3.5 py-2.5 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-lg text-[var(--text-main)] focus:outline-none focus:border-emerald-500/60 transition-colors">
+            <option value="7" {{ if eq .HistoryDays 7 }}selected{{ end }}>7 Days (Last 1 Week)</option>
+            <option value="14" {{ if eq .HistoryDays 14 }}selected{{ end }}>14 Days (Last 2 Weeks)</option>
+            <option value="30" {{ if eq .HistoryDays 30 }}selected{{ end }}>30 Days (Last 1 Month)</option>
+            <option value="60" {{ if or (eq .HistoryDays 60) (not .HistoryDays) }}selected{{ end }}>60 Days (Default 2 Months)</option>
+            <option value="90" {{ if eq .HistoryDays 90 }}selected{{ end }}>90 Days (Last Quarter)</option>
+          </select>
+          <span class="text-[11px] text-[var(--text-muted)] mt-1 block">Number of daily heartbeat bars and past incidents timeline depth.</span>
+        </div>
+      </div>
+
+      <div class="pt-2 flex items-center gap-2.5">
+        <input type="checkbox" name="is_default" id="is_default" value="true" {{ if .IsDefault }}checked{{ end }} class="rounded border-[var(--border-color)] text-emerald-500 focus:ring-0">
+        <label for="is_default" class="text-xs text-[var(--text-muted)] font-medium cursor-pointer">
+          Set as default fallback status page (shown when domain does not match any other page)
+        </label>
+      </div>
+
+      <div class="pt-6 border-t border-[var(--border-color)] flex items-center justify-between">
+        <a href="/admin" class="px-4 py-2 bg-[var(--bg-subtle)] hover:bg-[var(--border-color)] rounded-lg text-[var(--text-muted)] hover:text-[var(--text-main)] transition-colors">
+          &larr; Cancel
+        </a>
+        <button type="submit" class="btn-primary px-6 py-2.5 text-xs font-semibold flex items-center gap-2">
+          <span>Create Status Page &rarr;</span>
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+{{ end }}

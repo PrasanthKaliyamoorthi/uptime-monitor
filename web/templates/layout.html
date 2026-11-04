@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="{{ if .Theme }}{{ .Theme }}{{ else }}openstatus-slate{{ end }}" style="background-color: #0b0f17;">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ if .Title }}{{ .Title }}{{ else }}Status Page{{ end }}</title>
+  <script>
+    (function() {
+      try {
+        var t = localStorage.getItem('uptime_theme');
+        if (t) document.documentElement.setAttribute('data-theme', t);
+      } catch(e) {}
+    })();
+  </script>
+  {{ if .StatusPage }}
+  <link rel="alternate" type="application/rss+xml" title="{{ .StatusPage.Name }} Incident Feed" href="/feed.xml">
+  {{ end }}
+  <!-- Embedded Tailwind CSS JIT -->
+  <script src="/static/js/tailwind.min.js"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            themeBase: 'var(--bg-base)',
+            themeCard: 'var(--bg-card)',
+            themeSubtle: 'var(--bg-subtle)',
+            themeText: 'var(--text-main)',
+            themeMuted: 'var(--text-muted)',
+            themeBorder: 'var(--border-color)',
+            themeAccent: 'var(--accent)',
+            statusUp: 'var(--color-up)',
+            statusDegraded: 'var(--color-degraded)',
+            statusDown: 'var(--color-down)',
+          }
+        }
+      }
+    }
+  </script>
+  <!-- Embedded custom styles & 6 themes -->
+  <link rel="stylesheet" href="/static/css/app.css">
+  <!-- Embedded HTMX library -->
+  <script src="/static/js/htmx.min.js"></script>
+</head>
+<body class="min-h-screen flex flex-col justify-between selection:bg-emerald-500 selection:text-white">
+  {{ template "content" . }}
+
+  <footer class="mt-16 py-8 border-t border-[var(--border-color)] text-center text-xs text-[var(--text-muted)]">
+    <div class="max-w-4xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+      <div>
+        Powered by <span class="font-semibold text-[var(--text-main)]">Uptime Monitor</span> (Go + HTMX)
+      </div>
+      <div class="flex items-center gap-4">
+        {{ if .StatusPage }}
+        <a href="/feed.xml" class="hover:text-[var(--text-main)] transition-colors flex items-center gap-1">
+          <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M6.503 20.752c0 1.794-1.456 3.248-3.251 3.248-1.796 0-3.252-1.454-3.252-3.248 0-1.794 1.456-3.248 3.252-3.248 1.795.001 3.251 1.454 3.251 3.248zm-6.503-12.572v4.811c6.05 0 10.96 4.91 10.96 10.96h4.811c0-8.711-7.06-15.771-15.771-15.771zm0-8.18v4.812c10.561 0 19.139 8.578 19.139 19.138h4.811c0-13.226-10.724-23.95-23.95-23.95z"/></svg>
+          RSS Feed
+        </a>
+        {{ end }}
+        {{ if .CanAccessAdmin }}
+        <a href="/admin" class="hover:text-[var(--text-main)] transition-colors font-medium">Admin Console</a>
+        {{ end }}
+      </div>
+    </div>
+  </footer>
+</body>
+</html>

@@ -1,0 +1,231 @@
+{{ define "admin_content" }}
+<div class="space-y-8">
+  <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <div>
+      <h2 class="text-xl font-bold text-[var(--text-main)]">Incident Reports & Maintenance</h2>
+      <p class="text-xs text-[var(--text-muted)] mt-0.5">Post incident updates, communicate active outages, and schedule future maintenance windows.</p>
+    </div>
+    <button onclick="document.getElementById('incident-modal').classList.remove('hidden')" class="btn-primary text-xs flex items-center gap-1.5 self-start sm:self-auto">
+      <span>+ Report Incident / Maintenance</span>
+    </button>
+  </div>
+
+  <div class="space-y-6">
+    {{ if .Incidents }}
+      {{ range .Incidents }}
+      <div class="card p-6 space-y-4">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-[var(--border-color)]">
+          <div class="flex items-center gap-3">
+            <span class="text-xs uppercase font-bold tracking-wider px-2 py-0.5 rounded {{ if eq .Severity "critical" }}bg-red-500/20 text-red-400{{ else if eq .Severity "major" }}bg-orange-500/20 text-orange-400{{ else if eq .Severity "maintenance" }}bg-blue-500/20 text-blue-400{{ else }}bg-yellow-500/20 text-yellow-400{{ end }}">
+              {{ if .IsMaintenance }}Maintenance{{ else }}{{ .Severity }}{{ end }}
+            </span>
+            <h3 class="text-base font-semibold text-[var(--text-main)]">{{ .Title }}</h3>
+          </div>
+          <div class="flex items-center gap-3 text-xs">
+            <span class="uppercase font-mono px-2 py-0.5 rounded bg-[var(--bg-subtle)] text-[var(--text-muted)]">Status: {{ .Status }}</span>
+            <span class="text-[var(--text-muted)]">{{ .CreatedAt.Format "Jan 02, 15:04 UTC" }}</span>
+          </div>
+        </div>
+
+        <!-- Timeline of updates -->
+        {{ if .Updates }}
+        <div class="space-y-3 pl-2">
+          {{ range .Updates }}
+          <div class="text-xs space-y-0.5 border-l-2 border-[var(--border-color)] pl-3">
+            <div class="flex items-center gap-2">
+              <span class="font-bold uppercase text-[10px] text-[var(--text-main)]">{{ .Status }}</span>
+              <span class="text-[var(--text-muted)]">&bull; {{ .CreatedAt.Format "15:04:05 UTC" }}</span>
+            </div>
+            <p class="text-[var(--text-muted)] leading-relaxed">{{ .Message }}</p>
+          </div>
+          {{ end }}
+        </div>
+        {{ end }}
+
+        <!-- Post update form -->
+        <div class="pt-3 border-t border-[var(--border-color)] flex items-center justify-between">
+          <form method="POST" action="/admin/incidents/{{ .ID }}/update" class="flex flex-wrap items-center gap-2 text-xs w-full sm:w-auto">
+            <select name="status" class="px-2 py-1 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded text-[var(--text-main)]">
+              <option value="investigating">Investigating</option>
+              <option value="identified">Identified</option>
+              <option value="monitoring">Monitoring</option>
+              <option value="resolved">Resolved</option>
+            </select>
+            <input type="text" name="message" required placeholder="Add timeline update message..." class="px-3 py-1 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded text-[var(--text-main)] w-64">
+            <input type="datetime-local" name="created_at" title="Optional update timestamp (defaults to now)" class="px-2 py-1 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded text-[var(--text-main)] text-[11px]">
+            <button type="submit" class="px-3 py-1 bg-emerald-500 text-white rounded font-medium hover:bg-emerald-600 transition-colors">
+              Add Update
+            </button>
+          </form>
+
+          <div class="flex items-center gap-2">
+            <button type="button" onclick="openEditIncidentModal('{{ .ID }}', '{{ .Title }}', '{{ .Status }}', '{{ .Severity }}', '{{ formatDateTimeLocal .CreatedAt }}', '{{ formatDateTimeLocal .ResolvedAt }}', '{{ formatDateTimeLocal .ScheduledStart }}', '{{ formatDateTimeLocal .ScheduledEnd }}')" class="text-xs text-sky-400 hover:text-sky-300 px-2 py-1">
+              Edit
+            </button>
+            <form method="POST" action="/admin/incidents/{{ .ID }}/delete" onsubmit="return confirm('Delete this incident?')">
+              <button type="submit" class="text-xs text-red-400 hover:text-red-300 px-2 py-1">Delete</button>
+            </form>
+          </div>
+        </div>
+      </div>
+      {{ end }}
+    {{ else }}
+      <div class="card p-12 text-center text-[var(--text-muted)] text-sm">
+        No active or past incidents recorded.
+      </div>
+    {{ end }}
+  </div>
+</div>
+
+<!-- Modal: New Incident -->
+<div id="incident-modal" class="hidden fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+  <div class="card max-w-xl w-full p-6 shadow-2xl relative my-8 border border-[var(--border-color)]">
+    <div class="flex items-center justify-between pb-4 border-b border-[var(--border-color)] mb-5">
+      <h3 class="text-base font-bold text-[var(--text-main)]">New Incident / Maintenance</h3>
+      <button onclick="document.getElementById('incident-modal').classList.add('hidden')" class="text-[var(--text-muted)] hover:text-[var(--text-main)] text-xl font-bold">&times;</button>
+    </div>
+
+    <form method="POST" action="/admin/incidents" class="space-y-4 text-xs">
+      <div>
+        <label class="block font-semibold text-[var(--text-muted)] uppercase mb-1">Incident Title</label>
+        <input type="text" name="title" required placeholder="API Gateway Elevated Latency" class="w-full px-3 py-2 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-lg text-[var(--text-main)]">
+      </div>
+
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block font-semibold text-[var(--text-muted)] uppercase mb-1">Severity Impact</label>
+          <select name="severity" class="w-full px-3 py-2 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-lg text-[var(--text-main)]">
+            <option value="minor">Minor Degradation</option>
+            <option value="major">Major Outage</option>
+            <option value="critical">Critical Emergency</option>
+            <option value="maintenance">Scheduled Maintenance</option>
+          </select>
+        </div>
+        <div>
+          <label class="block font-semibold text-[var(--text-muted)] uppercase mb-1">Initial Status</label>
+          <select name="status" class="w-full px-3 py-2 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-lg text-[var(--text-main)]">
+            <option value="investigating" selected>Investigating</option>
+            <option value="identified">Identified</option>
+            <option value="monitoring">Monitoring</option>
+            <option value="resolved">Resolved</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div>
+          <label class="block font-semibold text-[var(--text-muted)] uppercase mb-1">Occurred At / Started At</label>
+          <input type="datetime-local" name="created_at" class="w-full px-3 py-2 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-lg text-[var(--text-main)] font-mono text-xs">
+          <span class="text-[10px] text-[var(--text-muted)] mt-0.5 block">Leave blank to default to current time.</span>
+        </div>
+        <div>
+          <label class="block font-semibold text-[var(--text-muted)] uppercase mb-1">Resolved At <span class="text-[var(--text-muted)] font-normal">(If Resolved)</span></label>
+          <input type="datetime-local" name="resolved_at" class="w-full px-3 py-2 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-lg text-[var(--text-main)] font-mono text-xs">
+          <span class="text-[10px] text-[var(--text-muted)] mt-0.5 block">Only applicable if initial status is Resolved.</span>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div>
+          <label class="block font-semibold text-[var(--text-muted)] uppercase mb-1">Scheduled Start <span class="text-[var(--text-muted)] font-normal">(Maintenance)</span></label>
+          <input type="datetime-local" name="scheduled_start" class="w-full px-3 py-2 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-lg text-[var(--text-main)] font-mono text-xs">
+        </div>
+        <div>
+          <label class="block font-semibold text-[var(--text-muted)] uppercase mb-1">Scheduled End <span class="text-[var(--text-muted)] font-normal">(Maintenance)</span></label>
+          <input type="datetime-local" name="scheduled_end" class="w-full px-3 py-2 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-lg text-[var(--text-main)] font-mono text-xs">
+        </div>
+      </div>
+
+      <div>
+        <label class="block font-semibold text-[var(--text-muted)] uppercase mb-1">Initial Update Message</label>
+        <textarea name="message" rows="3" required placeholder="We are currently investigating reports of increased response times..." class="w-full px-3 py-2 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-lg text-[var(--text-main)]"></textarea>
+      </div>
+
+      <div class="pt-4 flex justify-end gap-3">
+        <button type="button" onclick="document.getElementById('incident-modal').classList.add('hidden')" class="px-4 py-2 bg-[var(--bg-subtle)] rounded-lg text-[var(--text-muted)]">Cancel</button>
+        <button type="submit" class="btn-primary px-5 py-2">Publish Incident</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal: Edit Incident Overall Details -->
+<div id="edit-incident-modal" class="hidden fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+  <div class="card max-w-xl w-full p-6 shadow-2xl relative my-8 border border-[var(--border-color)]">
+    <div class="flex items-center justify-between pb-4 border-b border-[var(--border-color)] mb-5">
+      <h3 class="text-base font-bold text-[var(--text-main)]">Edit Incident Details</h3>
+      <button onclick="document.getElementById('edit-incident-modal').classList.add('hidden')" class="text-[var(--text-muted)] hover:text-[var(--text-main)] text-xl font-bold">&times;</button>
+    </div>
+
+    <form id="edit-incident-form" method="POST" action="" class="space-y-4 text-xs">
+      <div>
+        <label class="block font-semibold text-[var(--text-muted)] uppercase mb-1">Incident Title</label>
+        <input type="text" id="edit-inc-title" name="title" required class="w-full px-3 py-2 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-lg text-[var(--text-main)]">
+      </div>
+
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block font-semibold text-[var(--text-muted)] uppercase mb-1">Severity Impact</label>
+          <select id="edit-inc-severity" name="severity" class="w-full px-3 py-2 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-lg text-[var(--text-main)]">
+            <option value="minor">Minor Degradation</option>
+            <option value="major">Major Outage</option>
+            <option value="critical">Critical Emergency</option>
+            <option value="maintenance">Scheduled Maintenance</option>
+          </select>
+        </div>
+        <div>
+          <label class="block font-semibold text-[var(--text-muted)] uppercase mb-1">Current Status</label>
+          <select id="edit-inc-status" name="status" class="w-full px-3 py-2 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-lg text-[var(--text-main)]">
+            <option value="investigating">Investigating</option>
+            <option value="identified">Identified</option>
+            <option value="monitoring">Monitoring</option>
+            <option value="resolved">Resolved</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div>
+          <label class="block font-semibold text-[var(--text-muted)] uppercase mb-1">Incident Started / Occurred At</label>
+          <input type="datetime-local" id="edit-inc-created" name="created_at" class="w-full px-3 py-2 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-lg text-[var(--text-main)] font-mono text-xs">
+        </div>
+        <div>
+          <label class="block font-semibold text-[var(--text-muted)] uppercase mb-1">Resolved At</label>
+          <input type="datetime-local" id="edit-inc-resolved" name="resolved_at" class="w-full px-3 py-2 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-lg text-[var(--text-main)] font-mono text-xs">
+          <span class="text-[10px] text-[var(--text-muted)] mt-0.5 block">Effective when status is Resolved.</span>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div>
+          <label class="block font-semibold text-[var(--text-muted)] uppercase mb-1">Scheduled Start <span class="text-[var(--text-muted)] font-normal">(Maintenance)</span></label>
+          <input type="datetime-local" id="edit-inc-start" name="scheduled_start" class="w-full px-3 py-2 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-lg text-[var(--text-main)] font-mono text-xs">
+        </div>
+        <div>
+          <label class="block font-semibold text-[var(--text-muted)] uppercase mb-1">Scheduled End <span class="text-[var(--text-muted)] font-normal">(Maintenance)</span></label>
+          <input type="datetime-local" id="edit-inc-end" name="scheduled_end" class="w-full px-3 py-2 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-lg text-[var(--text-main)] font-mono text-xs">
+        </div>
+      </div>
+
+      <div class="pt-4 flex justify-end gap-3">
+        <button type="button" onclick="document.getElementById('edit-incident-modal').classList.add('hidden')" class="px-4 py-2 bg-[var(--bg-subtle)] rounded-lg text-[var(--text-muted)]">Cancel</button>
+        <button type="submit" class="btn-primary px-5 py-2">Save Changes</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+function openEditIncidentModal(id, title, status, severity, createdAt, resolvedAt, schedStart, schedEnd) {
+  document.getElementById('edit-incident-form').action = '/admin/incidents/' + id + '/edit';
+  document.getElementById('edit-inc-title').value = title;
+  document.getElementById('edit-inc-status').value = status;
+  document.getElementById('edit-inc-severity').value = severity;
+  document.getElementById('edit-inc-created').value = createdAt;
+  document.getElementById('edit-inc-resolved').value = resolvedAt;
+  document.getElementById('edit-inc-start').value = schedStart;
+  document.getElementById('edit-inc-end').value = schedEnd;
+  document.getElementById('edit-incident-modal').classList.remove('hidden');
+}
+</script>
+{{ end }}

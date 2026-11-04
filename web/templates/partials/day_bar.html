@@ -1,0 +1,16 @@
+{{ define "day_bar" }}
+<div class="space-y-1.5">
+  <div class="day-bar-container">
+    {{ range .DayBars }}
+    <div class="day-tick has-tooltip {{ if .CSSClass }}{{ .CSSClass }}{{ else if eq .Status "up" }}tick-up{{ else if eq .Status "degraded" }}tick-degraded{{ else if eq .Status "down" }}tick-down{{ else }}tick-nodata{{ end }}">
+      <div class="tooltip-content">{{ .Tooltip }}</div>
+    </div>
+    {{ end }}
+  </div>
+  <div class="flex justify-between items-center text-[10px] text-[var(--text-muted)] px-0.5">
+    <span>{{ len .DayBars }} days ago</span>
+    <span class="font-medium text-[var(--text-main)]">{{ printf "%.2f" .OverallUptime }}% uptime</span>
+    <span>Today</span>
+  </div>
+</div>
+{{ end }}

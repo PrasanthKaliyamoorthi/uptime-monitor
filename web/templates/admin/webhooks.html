@@ -1,0 +1,344 @@
+{{ define "admin_content" }}
+<div class="space-y-8">
+  <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <div>
+      <h2 class="text-xl font-bold text-[var(--text-main)]">Alert Webhooks & Integrations</h2>
+      <p class="text-xs text-[var(--text-muted)] mt-0.5">Fully customizable webhook dispatchers for Discord, Slack, Telegram, PagerDuty, n8n, or custom APIs.</p>
+    </div>
+    <button onclick="document.getElementById('webhook-modal').classList.remove('hidden')" class="btn-primary text-xs flex items-center gap-1.5 self-start sm:self-auto">
+      <span>+ Add Alert Webhook</span>
+    </button>
+  </div>
+
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+    {{ range .Webhooks }}
+    <div class="card p-6 space-y-4">
+      <div class="flex items-start justify-between">
+        <div>
+          <h3 class="text-base font-bold text-[var(--text-main)]">{{ .Name }}</h3>
+          <div class="text-xs text-[var(--text-muted)] font-mono truncate max-w-sm mt-1">
+            <span class="px-1.5 py-0.5 rounded bg-[var(--bg-subtle)] border border-[var(--border-color)] uppercase">{{ .Method }}</span>
+            <span class="ml-1">{{ sanitizeURL .URL }}</span>
+          </div>
+        </div>
+        <span class="w-2.5 h-2.5 rounded-full {{ if .IsActive }}bg-emerald-500{{ else }}bg-gray-500{{ end }}"></span>
+      </div>
+
+      <!-- Trigger flags badges -->
+      <div class="flex flex-wrap gap-1.5 text-[10px] uppercase font-mono">
+        {{ if .TriggerOnDown }}<span class="px-2 py-0.5 rounded bg-red-500/20 text-red-400">Trigger on Down</span>{{ end }}
+        {{ if .TriggerOnDegraded }}<span class="px-2 py-0.5 rounded bg-amber-500/20 text-amber-400">Trigger on Degraded</span>{{ end }}
+        {{ if .TriggerOnUp }}<span class="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400">Trigger on Up</span>{{ end }}
+        {{ if .TriggerOnTLSWarning }}<span class="px-2 py-0.5 rounded bg-blue-500/20 text-blue-400">SSL Warning</span>{{ end }}
+        {{ if .TriggerOnIncident }}<span class="px-2 py-0.5 rounded bg-purple-500/20 text-purple-400">Incidents</span>{{ end }}
+      </div>
+
+      <div class="pt-4 border-t border-[var(--border-color)] flex items-center justify-between">
+        <!-- Test Webhook Trigger Button -->
+        <button type="button"
+                onclick="testWebhook('{{ .ID }}', this)"
+                class="px-2.5 py-1 rounded bg-[var(--bg-subtle)] hover:bg-[var(--border-color)] text-xs text-[var(--text-main)] transition-colors">
+          Send Test Notification
+        </button>
+
+        <div class="flex items-center gap-2">
+          <button type="button"
+                  onclick="openEditWebhookModal('{{ .ID }}')"
+                  class="text-xs text-sky-400 hover:text-sky-300 px-2.5 py-1 rounded bg-sky-500/10 hover:bg-sky-500/20 border border-sky-500/30 transition-colors">
+            Edit
+          </button>
+
+          <form method="POST" action="/admin/webhooks/{{ .ID }}/delete" onsubmit="return confirm('Delete this webhook?')">
+            <button type="submit" class="text-xs text-red-400 hover:text-red-300 px-2 py-1 rounded hover:bg-red-500/10 transition-colors">Delete</button>
+          </form>
+        </div>
+      </div>
+
+      <!-- Embedded JSON for instant modal opening -->
+      <script type="application/json" id="wh-data-{{ .ID }}">
+      {
+        "id": {{ toJSON .ID }},
+        "name": {{ toJSON .Name }},
+        "url": {{ toJSON .URL }},
+        "method": {{ toJSON .Method }},
+        "headers_json": {{ toJSON .HeadersJSON }},
+        "payload_template": {{ toJSON .PayloadTemplate }},
+        "trigger_on_down": {{ .TriggerOnDown }},
+        "trigger_on_degraded": {{ .TriggerOnDegraded }},
+        "trigger_on_up": {{ .TriggerOnUp }},
+        "trigger_on_tls_warning": {{ .TriggerOnTLSWarning }},
+        "trigger_on_incident": {{ .TriggerOnIncident }},
+        "is_active": {{ .IsActive }}
+      }
+      </script>
+    </div>
+    {{ else }}
+    <div class="col-span-2 card p-12 text-center space-y-4 border-dashed border-2 border-[var(--border-color)]">
+      <div class="w-12 h-12 rounded-full bg-emerald-500/10 text-emerald-400 flex items-center justify-center mx-auto text-xl">
+        &#128276;
+      </div>
+      <div>
+        <h4 class="text-base font-bold text-[var(--text-main)]">No Alert Webhooks Configured</h4>
+        <p class="text-xs text-[var(--text-muted)] max-w-md mx-auto mt-1">
+          Receive real-time notifications on Discord, Slack, Telegram, or custom webhook endpoints when services change status or report incidents.
+        </p>
+      </div>
+      <div>
+        <button onclick="document.getElementById('webhook-modal').classList.remove('hidden')" class="btn-primary text-xs py-2 px-4 inline-flex items-center gap-1.5 font-semibold">
+          <span>+ Add Alert Webhook</span>
+        </button>
+      </div>
+    </div>
+    {{ end }}
+  </div>
+</div>
+
+<!-- Modal: New Webhook -->
+<div id="webhook-modal" class="hidden fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+  <div class="modal-card max-w-xl w-full p-6 relative my-8">
+    <div class="flex items-center justify-between pb-4 border-b border-[var(--border-color)] mb-5">
+      <h3 class="text-base font-bold text-[var(--text-main)]">Add Alert Webhook</h3>
+      <button onclick="document.getElementById('webhook-modal').classList.add('hidden')" class="text-[var(--text-muted)] hover:text-[var(--text-main)] text-xl font-bold">&times;</button>
+    </div>
+
+    <form method="POST" action="/admin/webhooks" class="space-y-4 text-xs">
+      <div>
+        <label class="block font-semibold text-[var(--text-muted)] uppercase mb-1">Webhook Name</label>
+        <input type="text" name="name" required placeholder="Team Discord Alerts" class="w-full px-3 py-2 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-lg text-[var(--text-main)]">
+      </div>
+
+      <div class="grid grid-cols-4 gap-3">
+        <div>
+          <label class="block font-semibold text-[var(--text-muted)] uppercase mb-1">Method</label>
+          <select name="method" class="w-full px-3 py-2 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-lg text-[var(--text-main)]">
+            <option value="POST" selected>POST</option>
+            <option value="PUT">PUT</option>
+          </select>
+        </div>
+        <div class="col-span-3">
+          <label class="block font-semibold text-[var(--text-muted)] uppercase mb-1">Webhook Endpoint URL</label>
+          <input type="url" name="url" required placeholder="https://discord.com/api/webhooks/..." class="w-full px-3 py-2 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-lg text-[var(--text-main)] font-mono">
+        </div>
+      </div>
+
+      <!-- Preset Template Selector -->
+      <div>
+        <label class="block font-semibold text-[var(--text-muted)] uppercase mb-1">Preset Payload Template</label>
+        <select id="preset-select" onchange="applyPreset(this.value)" class="w-full px-3 py-2 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-lg text-[var(--text-main)]">
+          <option value="generic" selected>Generic JSON (n8n, Zapier, Custom API)</option>
+          <option value="zulip">Zulip Bot (Form-Encoded)</option>
+          <option value="discord">Discord Incoming Webhook</option>
+          <option value="slack">Slack Incoming Webhook</option>
+          <option value="telegram">Telegram Bot</option>
+        </select>
+      </div>
+
+      <div>
+        <label class="block font-semibold text-[var(--text-muted)] uppercase mb-1">Custom Headers (Optional JSON)</label>
+        <input type="text" name="headers_json" placeholder='{"Authorization": "Bearer ...", "Content-Type": "application/x-www-form-urlencoded"}' class="w-full px-3 py-2 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-lg text-[var(--text-main)] font-mono text-[11px]">
+      </div>
+
+      <div>
+        <div class="flex items-center justify-between mb-1">
+          <label class="font-semibold text-[var(--text-muted)] uppercase">Payload Template</label>
+          <span class="text-[10px] text-[var(--text-muted)]">Template variables: &#123;&#123;.MonitorName&#125;&#125;, &#123;&#123;.Status&#125;&#125;, etc.</span>
+        </div>
+        <textarea id="payload-template" name="payload_template" rows="4" required class="w-full px-3 py-2 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-lg text-[var(--text-main)] font-mono text-[11px]"></textarea>
+      </div>
+
+      <!-- Trigger Conditions -->
+      <div>
+        <label class="block font-semibold text-[var(--text-muted)] uppercase mb-2">Trigger Conditions</label>
+        <div class="grid grid-cols-2 gap-2 p-3 bg-[var(--bg-subtle)] rounded-lg border border-[var(--border-color)]">
+          <label class="flex items-center gap-2 cursor-pointer">
+            <input type="checkbox" name="trigger_on_down" value="true" checked class="rounded">
+            <span>Trigger on Service Down</span>
+          </label>
+          <label class="flex items-center gap-2 cursor-pointer">
+            <input type="checkbox" name="trigger_on_degraded" value="true" checked class="rounded">
+            <span>Trigger on Degraded</span>
+          </label>
+          <label class="flex items-center gap-2 cursor-pointer">
+            <input type="checkbox" name="trigger_on_up" value="true" checked class="rounded">
+            <span>Trigger on Recovery (Up)</span>
+          </label>
+          <label class="flex items-center gap-2 cursor-pointer">
+            <input type="checkbox" name="trigger_on_tls_warning" value="true" checked class="rounded">
+            <span>Trigger on SSL Expiring Soon</span>
+          </label>
+          <label class="flex items-center gap-2 cursor-pointer col-span-2">
+            <input type="checkbox" name="trigger_on_incident" value="true" checked class="rounded">
+            <span>Trigger on Incidents Published / Updated</span>
+          </label>
+        </div>
+      </div>
+
+      <div class="pt-4 flex justify-end gap-3">
+        <button type="button" onclick="document.getElementById('webhook-modal').classList.add('hidden')" class="px-4 py-2 bg-[var(--bg-subtle)] rounded-lg text-[var(--text-muted)]">Cancel</button>
+        <button type="submit" class="btn-primary px-5 py-2">Save Webhook</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal: Edit Webhook -->
+<div id="edit-webhook-modal" class="hidden fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+  <div class="modal-card max-w-xl w-full p-6 relative my-8">
+    <div class="flex items-center justify-between pb-4 border-b border-[var(--border-color)] mb-5">
+      <h3 class="text-base font-bold text-[var(--text-main)]">Edit Alert Webhook</h3>
+      <button onclick="document.getElementById('edit-webhook-modal').classList.add('hidden')" class="text-[var(--text-muted)] hover:text-[var(--text-main)] text-xl font-bold">&times;</button>
+    </div>
+
+    <form id="edit-webhook-form" method="POST" action="" class="space-y-4 text-xs">
+      <div>
+        <label class="block font-semibold text-[var(--text-muted)] uppercase mb-1">Webhook Name</label>
+        <input type="text" id="edit-wh-name" name="name" required class="w-full px-3 py-2 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-lg text-[var(--text-main)]">
+      </div>
+
+      <div class="grid grid-cols-4 gap-3">
+        <div>
+          <label class="block font-semibold text-[var(--text-muted)] uppercase mb-1">Method</label>
+          <select id="edit-wh-method" name="method" class="w-full px-3 py-2 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-lg text-[var(--text-main)]">
+            <option value="POST">POST</option>
+            <option value="PUT">PUT</option>
+          </select>
+        </div>
+        <div class="col-span-3">
+          <label class="block font-semibold text-[var(--text-muted)] uppercase mb-1">Webhook Endpoint URL</label>
+          <input type="url" id="edit-wh-url" name="url" required class="w-full px-3 py-2 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-lg text-[var(--text-main)] font-mono">
+        </div>
+      </div>
+
+      <!-- Preset Template Selector for Edit -->
+      <div>
+        <label class="block font-semibold text-[var(--text-muted)] uppercase mb-1">Replace With Preset Template (Optional)</label>
+        <select onchange="if(this.value) document.getElementById('edit-wh-payload').value = presets[this.value] || ''" class="w-full px-3 py-2 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-lg text-[var(--text-main)]">
+          <option value="">-- Keep Existing / Choose Preset --</option>
+          <option value="generic">Generic JSON (n8n, Zapier, Custom API)</option>
+          <option value="zulip">Zulip Bot (Form-Encoded)</option>
+          <option value="discord">Discord Incoming Webhook</option>
+          <option value="slack">Slack Incoming Webhook</option>
+          <option value="telegram">Telegram Bot</option>
+        </select>
+      </div>
+
+      <div>
+        <label class="block font-semibold text-[var(--text-muted)] uppercase mb-1">Custom Headers (Optional JSON)</label>
+        <input type="text" id="edit-wh-headers" name="headers_json" placeholder='{"Authorization": "Bearer ...", "Content-Type": "application/x-www-form-urlencoded"}' class="w-full px-3 py-2 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-lg text-[var(--text-main)] font-mono text-[11px]">
+      </div>
+
+      <div>
+        <div class="flex items-center justify-between mb-1">
+          <label class="font-semibold text-[var(--text-muted)] uppercase">Payload Template</label>
+          <span class="text-[10px] text-[var(--text-muted)]">Variables: &#123;&#123;.MonitorName&#125;&#125;, &#123;&#123;.Status&#125;&#125;, etc.</span>
+        </div>
+        <textarea id="edit-wh-payload" name="payload_template" rows="4" required class="w-full px-3 py-2 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-lg text-[var(--text-main)] font-mono text-[11px]"></textarea>
+      </div>
+
+      <!-- Trigger Conditions -->
+      <div>
+        <label class="block font-semibold text-[var(--text-muted)] uppercase mb-2">Trigger Conditions</label>
+        <div class="grid grid-cols-2 gap-2 p-3 bg-[var(--bg-subtle)] rounded-lg border border-[var(--border-color)]">
+          <label class="flex items-center gap-2 cursor-pointer">
+            <input type="checkbox" id="edit-wh-down" name="trigger_on_down" value="true" class="rounded">
+            <span>Trigger on Service Down</span>
+          </label>
+          <label class="flex items-center gap-2 cursor-pointer">
+            <input type="checkbox" id="edit-wh-degraded" name="trigger_on_degraded" value="true" class="rounded">
+            <span>Trigger on Degraded</span>
+          </label>
+          <label class="flex items-center gap-2 cursor-pointer">
+            <input type="checkbox" id="edit-wh-up" name="trigger_on_up" value="true" class="rounded">
+            <span>Trigger on Recovery (Up)</span>
+          </label>
+          <label class="flex items-center gap-2 cursor-pointer">
+            <input type="checkbox" id="edit-wh-tls" name="trigger_on_tls_warning" value="true" class="rounded">
+            <span>Trigger on SSL Expiring Soon</span>
+          </label>
+          <label class="flex items-center gap-2 cursor-pointer col-span-2">
+            <input type="checkbox" id="edit-wh-incident" name="trigger_on_incident" value="true" class="rounded">
+            <span>Trigger on Incidents Published / Updated</span>
+          </label>
+        </div>
+      </div>
+
+      <!-- Status Enabled -->
+      <div class="flex items-center gap-2 pt-1">
+        <input type="checkbox" id="edit-wh-active" name="is_active" value="true" class="rounded">
+        <label for="edit-wh-active" class="font-semibold text-[var(--text-main)] cursor-pointer">Active (Dispatcher enabled)</label>
+      </div>
+
+      <div class="pt-4 flex justify-end gap-3 border-t border-[var(--border-color)]">
+        <button type="button" onclick="document.getElementById('edit-webhook-modal').classList.add('hidden')" class="px-4 py-2 bg-[var(--bg-subtle)] rounded-lg text-[var(--text-muted)]">Cancel</button>
+        <button type="submit" class="btn-primary px-5 py-2">Update Webhook</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+const presets = {
+  generic: '{\n  "event": "{{.Event}}",\n  "monitor_name": "{{.MonitorName}}",\n  "target": "{{.Target}}",\n  "status": "{{.Status}}",\n  "latency_ms": {{.LatencyMs}},\n  "error": "{{.ErrorMessage}}",\n  "timestamp": "{{.Timestamp}}"\n}',
+  zulip: 'type=direct&to=["prasanth@sagasoft.io"]&content=🚨 {{.MonitorName}} is now {{.Status}} ({{.LatencyMs}}ms)\\nTarget: {{.Target}}\\nError: {{.ErrorMessage}}',
+  discord: '{\n  "content": "🚨 **{{.MonitorName}}** is now **{{.Status}}** ({{.LatencyMs}}ms)\\nTarget: `{{.Target}}`\\nError: {{.ErrorMessage}}"\n}',
+  slack: '{\n  "text": "🚨 *{{.MonitorName}}* is now *{{.Status}}* | Latency: {{.LatencyMs}}ms\\nTarget: {{.Target}}\\nDetails: {{.ErrorMessage}}"\n}',
+  telegram: '{\n  "chat_id": "REPLACE_WITH_CHAT_ID",\n  "text": "🚨 {{.MonitorName}} is {{.Status}}\\nTarget: {{.Target}}\\nError: {{.ErrorMessage}}"\n}'
+};
+function applyPreset(p) {
+  document.getElementById('payload-template').value = presets[p] || presets.generic;
+}
+applyPreset('generic');
+
+async function openEditWebhookModal(id) {
+  let wh = null;
+  const scriptTag = document.getElementById('wh-data-' + id);
+  if (scriptTag) {
+    try {
+      wh = JSON.parse(scriptTag.textContent);
+    } catch (e) {}
+  }
+  if (!wh) {
+    try {
+      const res = await fetch('/admin/webhooks/' + id);
+      if (!res.ok) throw new Error('Status ' + res.status);
+      wh = await res.json();
+    } catch (e) {
+      alert('Failed to load webhook details: ' + e);
+      return;
+    }
+  }
+
+  document.getElementById('edit-webhook-form').action = '/admin/webhooks/' + wh.id + '/edit';
+  document.getElementById('edit-wh-name').value = wh.name || '';
+  document.getElementById('edit-wh-method').value = wh.method || 'POST';
+  document.getElementById('edit-wh-url').value = wh.url || '';
+  document.getElementById('edit-wh-headers').value = wh.headers_json || '';
+  document.getElementById('edit-wh-payload').value = wh.payload_template || '';
+
+  document.getElementById('edit-wh-down').checked = !!wh.trigger_on_down;
+  document.getElementById('edit-wh-degraded').checked = !!wh.trigger_on_degraded;
+  document.getElementById('edit-wh-up').checked = !!wh.trigger_on_up;
+  document.getElementById('edit-wh-tls').checked = !!wh.trigger_on_tls_warning;
+  document.getElementById('edit-wh-incident').checked = !!wh.trigger_on_incident;
+  document.getElementById('edit-wh-active').checked = !!wh.is_active;
+
+  document.getElementById('edit-webhook-modal').classList.remove('hidden');
+}
+
+async function testWebhook(id, btn) {
+  const orig = btn.innerText;
+  btn.innerText = 'Sending...';
+  btn.disabled = true;
+  try {
+    const res = await fetch('/admin/webhooks/' + id + '/test', { method: 'POST' });
+    const text = await res.text();
+    alert(text);
+  } catch (e) {
+    alert('Test delivery request failed: ' + e);
+  } finally {
+    btn.innerText = orig;
+    btn.disabled = false;
+  }
+}
+</script>
+{{ end }}

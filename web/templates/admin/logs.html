@@ -1,0 +1,134 @@
+{{ define "admin_content" }}
+<div class="space-y-6">
+  <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <div>
+      <h2 class="text-xl font-bold text-[var(--text-main)]">System Logs & Failure Traces</h2>
+      <p class="text-xs text-[var(--text-muted)] mt-0.5">Real-time structured event logs, network phase timings, and probe telemetry.</p>
+    </div>
+
+    <!-- Filter form -->
+    <form method="GET" action="/admin/logs" class="flex flex-wrap items-center gap-2 text-xs">
+      <select name="level" onchange="this.form.submit()" class="px-2.5 py-1.5 bg-[var(--bg-card)] border border-[var(--border-color)] rounded-lg text-[var(--text-main)]">
+        <option value="ALL" {{ if eq .Level "ALL" }}selected{{ end }}>All Levels</option>
+        <option value="ERROR" {{ if eq .Level "ERROR" }}selected{{ end }}>Error</option>
+        <option value="WARN" {{ if eq .Level "WARN" }}selected{{ end }}>Warning</option>
+        <option value="INFO" {{ if eq .Level "INFO" }}selected{{ end }}>Info</option>
+      </select>
+
+      <select name="source" onchange="this.form.submit()" class="px-2.5 py-1.5 bg-[var(--bg-card)] border border-[var(--border-color)] rounded-lg text-[var(--text-main)]">
+        <option value="ALL" {{ if eq .Source "ALL" }}selected{{ end }}>All Sources</option>
+        <option value="checker" {{ if eq .Source "checker" }}selected{{ end }}>Checker</option>
+        <option value="scheduler" {{ if eq .Source "scheduler" }}selected{{ end }}>Scheduler</option>
+        <option value="auth" {{ if eq .Source "auth" }}selected{{ end }}>Auth</option>
+        <option value="notifier" {{ if eq .Source "notifier" }}selected{{ end }}>Notifier</option>
+      </select>
+
+      <input type="text" name="q" value="{{ .Query }}" placeholder="Filter message..." class="px-3 py-1.5 bg-[var(--bg-card)] border border-[var(--border-color)] rounded-lg text-[var(--text-main)]">
+      <button type="submit" class="px-3 py-1.5 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-lg text-[var(--text-main)]">Filter</button>
+    </form>
+  </div>
+
+  {{ if .Unblocked }}
+  <div class="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-lg text-emerald-400 text-xs flex items-center justify-between">
+    <span>✓ IP address successfully removed from admin blacklist.</span>
+    <a href="/admin/logs" class="underline text-emerald-400/80 hover:text-emerald-300">Dismiss</a>
+  </div>
+  {{ end }}
+
+  <!-- Blacklist Management Section -->
+  <div class="card p-5">
+    <div class="flex items-center justify-between mb-4">
+      <div>
+        <h3 class="text-sm font-semibold text-[var(--text-main)] flex items-center gap-2">
+          <svg class="w-4 h-4 text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+          Admin Console IP Blacklist
+        </h3>
+        <p class="text-xs text-[var(--text-muted)] mt-0.5">IP addresses temporarily or permanently banned from the admin console due to repeated failed logins. Public status pages remain accessible. CLI unlock: <code class="bg-[var(--bg-subtle)] px-1 py-0.5 rounded text-[var(--text-main)] font-mono">./uptime-monitor -unblock-ip &lt;ip&gt;</code></p>
+      </div>
+      <span class="text-xs px-2.5 py-1 rounded-full font-semibold {{ if .Blacklist }}bg-rose-500/20 text-rose-400{{ else }}bg-emerald-500/20 text-emerald-400{{ end }}">
+        {{ len .Blacklist }} Blocked
+      </span>
+    </div>
+
+    {{ if .Blacklist }}
+    <div class="overflow-x-auto">
+      <table class="w-full text-left text-xs font-mono">
+        <thead class="bg-[var(--bg-subtle)] border-b border-[var(--border-color)] text-[var(--text-muted)] uppercase">
+          <tr>
+            <th class="py-2.5 px-3">IP Address</th>
+            <th class="py-2.5 px-3">Failed Attempts</th>
+            <th class="py-2.5 px-3">Reason</th>
+            <th class="py-2.5 px-3">Blacklisted At</th>
+            <th class="py-2.5 px-3 text-right">Action</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-[var(--border-color)]">
+          {{ range .Blacklist }}
+          <tr class="hover:bg-[var(--bg-subtle)]/40">
+            <td class="py-2.5 px-3 text-[var(--text-main)] font-bold">{{ .IP }}</td>
+            <td class="py-2.5 px-3 text-rose-400 font-bold">{{ .FailedAttempts }}</td>
+            <td class="py-2.5 px-3 text-[var(--text-muted)]">{{ .Reason }}</td>
+            <td class="py-2.5 px-3 text-[var(--text-muted)]">{{ if .BlacklistedAt }}{{ .BlacklistedAt.Format "2006-01-02 15:04:05" }}{{ else }}-{{ end }}</td>
+            <td class="py-2.5 px-3 text-right">
+              <form method="POST" action="/admin/blacklist/unblock" class="inline">
+                <input type="hidden" name="ip" value="{{ .IP }}">
+                <button type="submit" class="px-2.5 py-1 text-xs bg-rose-500/20 text-rose-300 hover:bg-rose-500/30 rounded border border-rose-500/30">
+                  Unblock
+                </button>
+              </form>
+            </td>
+          </tr>
+          {{ end }}
+        </tbody>
+      </table>
+    </div>
+    {{ else }}
+    <div class="text-xs text-[var(--text-muted)] py-3 px-3 bg-[var(--bg-subtle)]/40 rounded border border-[var(--border-color)] flex items-center justify-between">
+      <span>No IP addresses are currently blacklisted from the admin console.</span>
+      <span class="text-emerald-400 font-medium">✓ All Clear</span>
+    </div>
+    {{ end }}
+  </div>
+
+  <div class="card overflow-hidden">
+    <div class="overflow-x-auto">
+      <table class="w-full text-left text-xs font-mono">
+        <thead class="bg-[var(--bg-subtle)] border-b border-[var(--border-color)] text-[var(--text-muted)] uppercase">
+          <tr>
+            <th class="py-3 px-4">Time</th>
+            <th class="py-3 px-4">Level</th>
+            <th class="py-3 px-4">Source</th>
+            <th class="py-3 px-4">Monitor ID</th>
+            <th class="py-3 px-4">Message</th>
+            <th class="py-3 px-4">Telemetry Context</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-[var(--border-color)]">
+          {{ range .Logs }}
+          <tr class="hover:bg-[var(--bg-subtle)]/40">
+            <td class="py-2.5 px-4 whitespace-nowrap text-[var(--text-muted)]">{{ .CreatedAt.Format "15:04:05.000" }}</td>
+            <td class="py-2.5 px-4 whitespace-nowrap">
+              <span class="px-2 py-0.5 rounded text-[10px] font-bold {{ if eq .Level "ERROR" }}bg-red-500/20 text-red-400{{ else if eq .Level "WARN" }}bg-amber-500/20 text-amber-400{{ else }}bg-blue-500/20 text-blue-400{{ end }}">
+                {{ .Level }}
+              </span>
+            </td>
+            <td class="py-2.5 px-4 whitespace-nowrap text-[var(--text-muted)] font-semibold">{{ .Source }}</td>
+            <td class="py-2.5 px-4 whitespace-nowrap text-[var(--text-muted)]">{{ if .MonitorID }}{{ .MonitorID }}{{ else }}-{{ end }}</td>
+            <td class="py-2.5 px-4 text-[var(--text-main)]">{{ .Message }}</td>
+            <td class="py-2.5 px-4 text-[var(--text-muted)] text-[11px] max-w-xs truncate">
+              {{ if .ContextJSON }}<code class="bg-[var(--bg-subtle)] px-1.5 py-0.5 rounded border border-[var(--border-color)]">{{ .ContextJSON }}</code>{{ else }}-{{ end }}
+            </td>
+          </tr>
+          {{ else }}
+          <tr>
+            <td colspan="6" class="p-8 text-center text-[var(--text-muted)] font-sans">
+              No log entries match the current filter criteria.
+            </td>
+          </tr>
+          {{ end }}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{{ end }}

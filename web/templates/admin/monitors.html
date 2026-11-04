@@ -1,0 +1,757 @@
+{{ define "admin_content" }}
+<div class="space-y-6">
+  <!-- Top Stats Row (Uptime Kuma Style) -->
+  <div class="grid grid-cols-2 sm:grid-cols-5 gap-3">
+    <div class="card p-3.5 flex items-center justify-between cursor-pointer hover:border-emerald-500/40 transition-colors" onclick="filterByStatus('all')">
+      <div>
+        <div class="text-[11px] text-[var(--text-muted)] font-medium uppercase tracking-wider">Total</div>
+        <div class="text-xl font-bold mt-0.5 text-[var(--text-main)]">{{ .TotalCount }}</div>
+      </div>
+      <div class="w-8 h-8 rounded-full bg-[var(--bg-subtle)] text-[var(--text-muted)] flex items-center justify-center text-sm font-bold">
+        &Sigma;
+      </div>
+    </div>
+
+    <div class="card p-3.5 flex items-center justify-between cursor-pointer hover:border-emerald-500/40 transition-colors" onclick="filterByStatus('up')">
+      <div>
+        <div class="text-[11px] text-emerald-400 font-medium uppercase tracking-wider">Up</div>
+        <div class="text-xl font-bold mt-0.5 text-emerald-400">{{ .UpCount }}</div>
+      </div>
+      <div class="w-8 h-8 rounded-full bg-emerald-500/10 text-emerald-400 flex items-center justify-center text-xs font-bold">
+        &check;
+      </div>
+    </div>
+
+    <div class="card p-3.5 flex items-center justify-between cursor-pointer hover:border-amber-500/40 transition-colors" onclick="filterByStatus('degraded')">
+      <div>
+        <div class="text-[11px] text-amber-400 font-medium uppercase tracking-wider">Degraded</div>
+        <div class="text-xl font-bold mt-0.5 text-amber-400">{{ .DegradedCount }}</div>
+      </div>
+      <div class="w-8 h-8 rounded-full bg-amber-500/10 text-amber-400 flex items-center justify-center text-xs font-bold">
+        !
+      </div>
+    </div>
+
+    <div class="card p-3.5 flex items-center justify-between cursor-pointer hover:border-red-500/40 transition-colors" onclick="filterByStatus('down')">
+      <div>
+        <div class="text-[11px] text-red-400 font-medium uppercase tracking-wider">Down</div>
+        <div class="text-xl font-bold mt-0.5 text-red-400">{{ .DownCount }}</div>
+      </div>
+      <div class="w-8 h-8 rounded-full bg-red-500/10 text-red-400 flex items-center justify-center text-xs font-bold">
+        &times;
+      </div>
+    </div>
+
+    <div class="card p-3.5 flex items-center justify-between cursor-pointer hover:border-gray-500/40 transition-colors col-span-2 sm:col-span-1" onclick="filterByStatus('paused')">
+      <div>
+        <div class="text-[11px] text-[var(--text-muted)] font-medium uppercase tracking-wider">Paused</div>
+        <div class="text-xl font-bold mt-0.5 text-[var(--text-muted)]">{{ .PausedCount }}</div>
+      </div>
+      <div class="w-8 h-8 rounded-full bg-[var(--bg-subtle)] text-[var(--text-muted)] flex items-center justify-center text-xs font-bold">
+        &#10074;&#10074;
+      </div>
+    </div>
+  </div>
+
+  <!-- Search & Toolbar -->
+  <div class="card p-4 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+    <div class="flex flex-1 items-center gap-2">
+      <div class="relative flex-1 max-w-md">
+        <input type="text"
+               id="monitor-search"
+               oninput="applyFilter()"
+               placeholder="Search monitors by name, host, protocol..."
+               class="w-full pl-9 pr-3 py-1.5 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-lg text-xs text-[var(--text-main)] placeholder-[var(--text-muted)] focus:outline-none focus:border-emerald-500">
+        <span class="absolute left-3 top-2 text-[var(--text-muted)] text-xs">&#128269;</span>
+      </div>
+
+      <!-- Quick Status Filter Pills -->
+      <div class="hidden sm:flex items-center gap-1 text-[11px] font-medium text-[var(--text-muted)]">
+        <button type="button" onclick="filterByStatus('all')" class="status-filter-btn px-2.5 py-1 rounded-md bg-[var(--bg-subtle)] text-[var(--text-main)] font-semibold" data-status="all">All</button>
+        <button type="button" onclick="filterByStatus('up')" class="status-filter-btn px-2.5 py-1 rounded-md hover:bg-[var(--bg-subtle)]" data-status="up">Up</button>
+        <button type="button" onclick="filterByStatus('down')" class="status-filter-btn px-2.5 py-1 rounded-md hover:bg-[var(--bg-subtle)]" data-status="down">Down</button>
+        <button type="button" onclick="filterByStatus('paused')" class="status-filter-btn px-2.5 py-1 rounded-md hover:bg-[var(--bg-subtle)]" data-status="paused">Paused</button>
+      </div>
+    </div>
+
+    <div class="flex items-center gap-2 self-end sm:self-auto">
+      <button id="auto-refresh-btn" type="button" onclick="toggleAutoRefresh()" class="text-xs py-1.5 px-2.5 rounded-lg border border-[var(--border-color)] bg-[var(--bg-subtle)] text-[var(--text-muted)] hover:text-[var(--text-main)] flex items-center gap-1.5 transition-colors" title="Toggle Auto-Refresh (30s)">
+        <span id="auto-refresh-dot" class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+        <span id="auto-refresh-label">Auto 30s</span>
+      </button>
+      <button onclick="document.getElementById('monitor-modal').classList.remove('hidden')" class="btn-primary text-xs py-1.5 px-3 flex items-center gap-1.5 font-semibold">
+        <span>+ Add Monitor</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Monitors List (Uptime Kuma Card Stack with Heartbeat Bars) -->
+  <div class="space-y-3" id="monitors-container">
+    {{ if .Monitors }}
+      {{ range .Monitors }}
+      <div class="card p-4 hover:border-[var(--border-color)]/80 transition-all monitor-item"
+           id="mon-card-{{ .ID }}"
+           data-name="{{ .Name | lower }}"
+           data-target="{{ .Target | lower }}"
+           data-proto="{{ .Protocol | lower }}"
+           data-status="{{ .DisplayStatus }}">
+        <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          <!-- Left: Status Indicator, Name, Protocol, URL -->
+          <div class="flex items-start gap-3 min-w-0 flex-1">
+            <span class="mt-1 w-3 h-3 rounded-full flex-shrink-0 {{ if eq .DisplayStatus "up" }}bg-emerald-500 shadow-sm shadow-emerald-500/50{{ else if eq .DisplayStatus "degraded" }}bg-amber-500 shadow-sm shadow-amber-500/50{{ else if eq .DisplayStatus "down" }}bg-red-500 shadow-sm shadow-red-500/50{{ else }}bg-gray-500{{ end }}"></span>
+
+            <div class="min-w-0">
+              <div class="flex items-center gap-2 flex-wrap">
+                <h3 class="text-sm font-bold text-[var(--text-main)] truncate">{{ .Name }}</h3>
+                <span class="text-[9px] uppercase font-mono px-1.5 py-0.5 rounded bg-[var(--bg-subtle)] border border-[var(--border-color)] text-[var(--text-muted)] font-semibold">{{ .Protocol }}</span>
+                {{ if not .IsActive }}
+                <span class="text-[9px] uppercase font-mono px-1.5 py-0.5 rounded bg-gray-500/20 text-gray-400 font-semibold">PAUSED</span>
+                {{ else if eq .DisplayStatus "degraded" }}
+                <span class="text-[9px] uppercase font-mono px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-400 font-semibold">DEGRADED</span>
+                {{ else if eq .DisplayStatus "down" }}
+                <span class="text-[9px] uppercase font-mono px-1.5 py-0.5 rounded bg-red-500/20 text-red-400 font-semibold">DOWN</span>
+                {{ end }}
+
+                {{ if gt .CertDays 0 }}
+                <span class="text-[10px] font-mono px-1.5 py-0.5 rounded border flex items-center gap-1 {{ if le .CertDays 14 }}bg-amber-500/10 text-amber-400 border-amber-500/30{{ else }}bg-emerald-500/10 text-emerald-400 border-emerald-500/20{{ end }}" title="SSL Issuer: {{ .CertIssuer }}">
+                  <span>&#128274;</span> {{ .CertDays }}d
+                </span>
+                {{ end }}
+              </div>
+
+              <div class="text-xs text-[var(--text-muted)] font-mono truncate max-w-md mt-0.5 flex items-center gap-1">
+                <a href="{{ if or (eq .Protocol "http") (eq .Protocol "https") }}{{ .Target }}{{ else }}#{{ end }}" target="_blank" rel="noopener noreferrer" class="hover:text-emerald-400 hover:underline">
+                  {{ .Target }}
+                </a>
+              </div>
+            </div>
+          </div>
+
+          <!-- Middle: Visual Heartbeat Bar (Uptime Kuma Signature Feature) -->
+          <div class="flex flex-col gap-1 items-start lg:items-end flex-shrink-0">
+            <div class="flex items-center gap-1 h-7">
+              {{ if .Heartbeats }}
+                {{ range .Heartbeats }}
+                <div class="w-1.5 sm:w-2 h-6 rounded-sm cursor-pointer transition-transform hover:scale-125 {{ if .IsSuccess }}bg-emerald-500 hover:bg-emerald-400{{ else if eq .StatusCode 0 }}bg-red-500 hover:bg-red-400{{ else }}bg-amber-500 hover:bg-amber-400{{ end }}"
+                     title="{{ .CheckedAt.Format "15:04:05 UTC" }} &#010;Latency: {{ .LatencyMs }}ms &#010;{{ if .IsSuccess }}Status: Success{{ else }}Error: {{ .ErrorType }} - {{ .ErrorMessage }}{{ end }}">
+                </div>
+                {{ end }}
+              {{ else }}
+                <span class="text-[11px] text-[var(--text-muted)] font-mono">No heartbeat checks yet</span>
+              {{ end }}
+            </div>
+
+            <!-- Stats Bar Under Heartbeats -->
+            <div class="flex items-center gap-3 text-[10px] font-mono text-[var(--text-muted)]">
+              <div>24h: <span class="font-bold {{ if ge .Uptime24h 99.0 }}text-emerald-400{{ else if ge .Uptime24h 95.0 }}text-amber-400{{ else }}text-red-400{{ end }}">{{ printf "%.1f" .Uptime24h }}%</span></div>
+              <div>&bull;</div>
+              <div>Avg: <span class="font-bold text-[var(--text-main)]">{{ .AvgLatency }}ms</span></div>
+              <div>&bull;</div>
+              <div>Last: <span class="font-bold text-[var(--text-main)]">{{ .LastLatencyMs }}ms</span></div>
+              <div>&bull;</div>
+              <div>Int: {{ .IntervalSec }}s</div>
+            </div>
+          </div>
+
+          <!-- Right: Action Buttons Toolbar -->
+          <div class="flex items-center gap-1.5 self-end lg:self-auto pt-2 lg:pt-0 border-t lg:border-t-0 border-[var(--border-color)]">
+            <!-- Check Now -->
+            <button hx-post="/admin/monitors/{{ .ID }}/check"
+                    hx-swap="none"
+                    hx-indicator="#spin-{{ .ID }}"
+                    title="Run Check Now"
+                    class="px-2.5 py-1 rounded bg-[var(--bg-subtle)] hover:bg-[var(--border-color)] border border-[var(--border-color)] text-xs text-[var(--text-main)] transition-colors flex items-center gap-1">
+              <span id="spin-{{ .ID }}" class="htmx-indicator animate-spin inline-block text-[10px]">&orarr;</span>
+              <span>Check</span>
+            </button>
+
+            <!-- Pause / Resume Toggle -->
+            <form method="POST" action="/admin/monitors/{{ .ID }}/toggle" class="inline">
+              <button type="submit"
+                      title="{{ if .IsActive }}Pause this monitor{{ else }}Resume this monitor{{ end }}"
+                      class="px-2.5 py-1 rounded border text-xs transition-colors flex items-center gap-1 {{ if .IsActive }}bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border-amber-500/30{{ else }}bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border-emerald-500/30{{ end }}">
+                <span>{{ if .IsActive }}&#10074;&#10074; Pause{{ else }}&#9658; Resume{{ end }}</span>
+              </button>
+            </form>
+
+            <!-- Edit Button -->
+            <button type="button"
+                    onclick="openEditMonitorModal('{{ .ID }}')"
+                    title="Edit Monitor Configuration"
+                    class="px-2.5 py-1 rounded bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 border border-sky-500/30 text-xs transition-colors">
+              Edit
+            </button>
+
+            <!-- Badges Button -->
+            <button type="button"
+                    onclick="openBadgeModal('{{ .ID }}', '{{ .Name }}')"
+                    title="Get SVG Status & Uptime Badges"
+                    class="px-2 py-1 rounded bg-[var(--bg-subtle)] hover:bg-[var(--border-color)] border border-[var(--border-color)] text-xs text-[var(--text-muted)] hover:text-[var(--text-main)] transition-colors">
+              &#127991; Badges
+            </button>
+
+            <!-- Diagnostics Waterfall -->
+            <button hx-get="/admin/monitors/{{ .ID }}/diagnostics"
+                    hx-target="#diagnostics-drawer-body"
+                    onclick="document.getElementById('diagnostics-drawer').classList.remove('hidden')"
+                    title="Deep Diagnostic Traces"
+                    class="px-2 py-1 rounded bg-[var(--bg-subtle)] hover:bg-[var(--border-color)] border border-[var(--border-color)] text-xs text-[var(--text-muted)] hover:text-[var(--text-main)] transition-colors">
+              &#128269;
+            </button>
+
+            <!-- Delete -->
+            <form method="POST" action="/admin/monitors/{{ .ID }}/delete" class="inline" onsubmit="return confirm('Delete monitor {{ .Name }} and all check history?')">
+              <button type="submit" title="Delete monitor" class="px-2 py-1 rounded bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 text-xs transition-colors">
+                &times;
+              </button>
+            </form>
+          </div>
+        </div>
+
+        <!-- Hidden JSON data island for instant zero-latency modal edit -->
+        <script type="application/json" id="mon-data-{{ .ID }}">
+        {
+          "id": {{ toJSON .ID }},
+          "name": {{ toJSON .Name }},
+          "protocol": {{ toJSON .Protocol }},
+          "target": {{ toJSON .Target }},
+          "method": {{ toJSON .Method }},
+          "auth_type": {{ toJSON .AuthType }},
+          "auth_token": {{ toJSON .AuthToken }},
+          "auth_user": {{ toJSON .AuthUser }},
+          "auth_pass": {{ toJSON .AuthPass }},
+          "headers_json": {{ toJSON .HeadersJSON }},
+          "body": {{ toJSON .Body }},
+          "skip_tls_verify": {{ .SkipTLSVerify }},
+          "interval_sec": {{ .IntervalSec }},
+          "timeout_sec": {{ .TimeoutSec }},
+          "expected_code": {{ .ExpectedCode }},
+          "keyword": {{ toJSON .Keyword }},
+          "retry_count": {{ .RetryCount }}
+        }
+        </script>
+      </div>
+      {{ end }}
+    {{ else }}
+    <div class="card p-12 text-center space-y-4 border-dashed border-2 border-[var(--border-color)]">
+      <div class="w-12 h-12 rounded-full bg-emerald-500/10 text-emerald-400 flex items-center justify-center mx-auto text-xl">
+        &#127760;
+      </div>
+      <div>
+        <h4 class="text-base font-bold text-[var(--text-main)]">No Monitors Configured</h4>
+        <p class="text-xs text-[var(--text-muted)] max-w-md mx-auto mt-1">
+          Monitor websites, APIs, TCP ports, or SMTP mail servers with heartbeat tracking, automated failover detection, and rich diagnostic traces.
+        </p>
+      </div>
+      <div>
+        <button onclick="document.getElementById('monitor-modal').classList.remove('hidden')" class="btn-primary text-xs py-2 px-4 inline-flex items-center gap-1.5 font-semibold">
+          <span>+ Add Your First Monitor</span>
+        </button>
+      </div>
+    </div>
+    {{ end }}
+  </div>
+</div>
+
+<!-- Modal: Add New Monitor -->
+<div id="monitor-modal" class="hidden fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+  <div class="card max-w-xl w-full p-6 shadow-2xl relative my-8 border border-[var(--border-color)]">
+    <div class="flex items-center justify-between pb-4 border-b border-[var(--border-color)] mb-5">
+      <h3 class="text-base font-bold text-[var(--text-main)]">Add New Monitor</h3>
+      <button onclick="document.getElementById('monitor-modal').classList.add('hidden')" class="text-[var(--text-muted)] hover:text-[var(--text-main)] text-xl font-bold">&times;</button>
+    </div>
+
+    <form method="POST" action="/admin/monitors" class="space-y-4 text-xs">
+      <div>
+        <label class="block font-semibold text-[var(--text-muted)] uppercase mb-1">Friendly Name</label>
+        <input type="text" name="name" required placeholder="Production API Gateway" class="w-full px-3 py-2 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-lg text-[var(--text-main)] focus:outline-none focus:border-emerald-500">
+      </div>
+
+      <div class="grid grid-cols-3 gap-3">
+        <div>
+          <label class="block font-semibold text-[var(--text-muted)] uppercase mb-1">Protocol</label>
+          <select name="protocol" id="protocol-select" onchange="toggleProtocolFields(this.value, 'add')" class="w-full px-3 py-2 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-lg text-[var(--text-main)] focus:outline-none focus:border-emerald-500">
+            <option value="https" selected>HTTPS</option>
+            <option value="http">HTTP</option>
+            <option value="tcp">TCP Port</option>
+            <option value="smtp">SMTP</option>
+          </select>
+        </div>
+        <div class="col-span-2">
+          <label class="block font-semibold text-[var(--text-muted)] uppercase mb-1">Target (URL or Host:Port)</label>
+          <input type="text" name="target" id="add-target" required placeholder="https://api.example.com/health" class="w-full px-3 py-2 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-lg text-[var(--text-main)] focus:outline-none focus:border-emerald-500 font-mono">
+        </div>
+      </div>
+
+      <!-- HTTP-specific settings -->
+      <div id="add-http-options" class="space-y-4 pt-3 border-t border-[var(--border-color)]">
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block font-semibold text-[var(--text-muted)] uppercase mb-1">HTTP Method</label>
+            <select name="method" class="w-full px-3 py-2 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-lg text-[var(--text-main)] focus:outline-none">
+              <option value="GET" selected>GET</option>
+              <option value="HEAD">HEAD</option>
+              <option value="POST">POST</option>
+              <option value="PUT">PUT</option>
+              <option value="PATCH">PATCH</option>
+            </select>
+          </div>
+          <div>
+            <label class="block font-semibold text-[var(--text-muted)] uppercase mb-1">Expected Status Code</label>
+            <input type="number" name="expected_code" value="200" class="w-full px-3 py-2 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-lg text-[var(--text-main)] focus:outline-none font-mono">
+          </div>
+        </div>
+
+        <!-- Authentication -->
+        <div>
+          <label class="block font-semibold text-[var(--text-muted)] uppercase mb-1">Authentication Type</label>
+          <select name="auth_type" onchange="toggleAuthFields(this.value, 'add')" class="w-full px-3 py-2 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-lg text-[var(--text-main)] focus:outline-none">
+            <option value="none" selected>None</option>
+            <option value="bearer">Bearer Token</option>
+            <option value="basic">HTTP Basic Auth</option>
+          </select>
+        </div>
+
+        <div id="add-auth-bearer-field" class="hidden">
+          <label class="block font-semibold text-[var(--text-muted)] uppercase mb-1">Bearer Token</label>
+          <input type="password" name="auth_token" placeholder="eyJhbGciOi..." class="w-full px-3 py-2 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-lg text-[var(--text-main)] font-mono">
+        </div>
+
+        <div id="add-auth-basic-fields" class="hidden grid grid-cols-2 gap-3">
+          <div>
+            <label class="block font-semibold text-[var(--text-muted)] uppercase mb-1">Basic Username</label>
+            <input type="text" name="auth_user" class="w-full px-3 py-2 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-lg text-[var(--text-main)]">
+          </div>
+          <div>
+            <label class="block font-semibold text-[var(--text-muted)] uppercase mb-1">Basic Password</label>
+            <input type="password" name="auth_pass" class="w-full px-3 py-2 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-lg text-[var(--text-main)]">
+          </div>
+        </div>
+
+        <!-- Custom Headers & Body -->
+        <div>
+          <label class="block font-semibold text-[var(--text-muted)] uppercase mb-1">Custom Request Headers (JSON)</label>
+          <input type="text" name="headers_json" placeholder='{"X-API-Key": "secret123", "User-Agent": "CustomAgent"}' class="w-full px-3 py-2 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-lg text-[var(--text-main)] font-mono text-[11px]">
+        </div>
+
+        <div>
+          <label class="block font-semibold text-[var(--text-muted)] uppercase mb-1">Request Body (for POST/PUT)</label>
+          <textarea name="body" rows="2" placeholder='{"ping": "pong"}' class="w-full px-3 py-2 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-lg text-[var(--text-main)] font-mono text-[11px]"></textarea>
+        </div>
+      </div>
+
+      <!-- Keyword & SSL options -->
+      <div id="add-keyword-tls-options" class="space-y-4 pt-3 border-t border-[var(--border-color)]">
+        <div>
+          <label id="add-keyword-label" class="block font-semibold text-[var(--text-muted)] uppercase mb-1">Keyword Assertion (optional)</label>
+          <input type="text" name="keyword" id="add-keyword-input" placeholder="Status OK" class="w-full px-3 py-2 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-lg text-[var(--text-main)]">
+        </div>
+
+        <div class="flex items-center gap-2">
+          <input type="checkbox" name="skip_tls_verify" id="add_skip_tls_verify" value="true" class="rounded border-[var(--border-color)]">
+          <label for="add_skip_tls_verify" class="text-xs text-[var(--text-muted)] cursor-pointer">Ignore self-signed SSL/TLS certificates (skip verify)</label>
+        </div>
+      </div>
+
+      <!-- Common timing settings -->
+      <div class="grid grid-cols-3 gap-3 pt-3 border-t border-[var(--border-color)]">
+        <div>
+          <label class="block font-semibold text-[var(--text-muted)] uppercase mb-1">Interval (Sec)</label>
+          <input type="number" name="interval_sec" value="60" min="5" class="w-full px-3 py-2 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-lg text-[var(--text-main)] font-mono">
+        </div>
+        <div>
+          <label class="block font-semibold text-[var(--text-muted)] uppercase mb-1">Timeout (Sec)</label>
+          <input type="number" name="timeout_sec" value="10" min="1" max="60" class="w-full px-3 py-2 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-lg text-[var(--text-main)] font-mono">
+        </div>
+        <div>
+          <label class="block font-semibold text-[var(--text-muted)] uppercase mb-1">Retries (Damping)</label>
+          <input type="number" name="retry_count" value="2" min="1" max="10" class="w-full px-3 py-2 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-lg text-[var(--text-main)] font-mono">
+        </div>
+      </div>
+
+      <div class="pt-4 flex justify-end gap-3 border-t border-[var(--border-color)]">
+        <button type="button" onclick="document.getElementById('monitor-modal').classList.add('hidden')" class="px-4 py-2 bg-[var(--bg-subtle)] rounded-lg text-[var(--text-muted)] hover:text-[var(--text-main)]">Cancel</button>
+        <button type="submit" class="btn-primary px-5 py-2">Create Monitor</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal: Edit Monitor -->
+<div id="edit-monitor-modal" class="hidden fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+  <div class="card max-w-xl w-full p-6 shadow-2xl relative my-8 border border-[var(--border-color)]">
+    <div class="flex items-center justify-between pb-4 border-b border-[var(--border-color)] mb-5">
+      <h3 class="text-base font-bold text-[var(--text-main)]">Edit Monitor</h3>
+      <button onclick="document.getElementById('edit-monitor-modal').classList.add('hidden')" class="text-[var(--text-muted)] hover:text-[var(--text-main)] text-xl font-bold">&times;</button>
+    </div>
+
+    <form id="edit-monitor-form" method="POST" action="" class="space-y-4 text-xs">
+      <div>
+        <label class="block font-semibold text-[var(--text-muted)] uppercase mb-1">Friendly Name</label>
+        <input type="text" id="edit-mon-name" name="name" required class="w-full px-3 py-2 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-lg text-[var(--text-main)] focus:outline-none focus:border-emerald-500">
+      </div>
+
+      <div class="grid grid-cols-3 gap-3">
+        <div>
+          <label class="block font-semibold text-[var(--text-muted)] uppercase mb-1">Protocol</label>
+          <select id="edit-mon-proto" name="protocol" onchange="toggleProtocolFields(this.value, 'edit')" class="w-full px-3 py-2 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-lg text-[var(--text-main)] focus:outline-none focus:border-emerald-500">
+            <option value="https">HTTPS</option>
+            <option value="http">HTTP</option>
+            <option value="tcp">TCP Port</option>
+            <option value="smtp">SMTP</option>
+          </select>
+        </div>
+        <div class="col-span-2">
+          <label class="block font-semibold text-[var(--text-muted)] uppercase mb-1">Target (URL or Host:Port)</label>
+          <input type="text" id="edit-mon-target" name="target" required class="w-full px-3 py-2 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-lg text-[var(--text-main)] focus:outline-none focus:border-emerald-500 font-mono">
+        </div>
+      </div>
+
+      <!-- HTTP-specific settings -->
+      <div id="edit-http-options" class="space-y-4 pt-3 border-t border-[var(--border-color)]">
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block font-semibold text-[var(--text-muted)] uppercase mb-1">HTTP Method</label>
+            <select id="edit-mon-method" name="method" class="w-full px-3 py-2 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-lg text-[var(--text-main)] focus:outline-none">
+              <option value="GET">GET</option>
+              <option value="HEAD">HEAD</option>
+              <option value="POST">POST</option>
+              <option value="PUT">PUT</option>
+              <option value="PATCH">PATCH</option>
+            </select>
+          </div>
+          <div>
+            <label class="block font-semibold text-[var(--text-muted)] uppercase mb-1">Expected Status Code</label>
+            <input type="number" id="edit-mon-code" name="expected_code" class="w-full px-3 py-2 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-lg text-[var(--text-main)] focus:outline-none font-mono">
+          </div>
+        </div>
+
+        <!-- Authentication -->
+        <div>
+          <label class="block font-semibold text-[var(--text-muted)] uppercase mb-1">Authentication Type</label>
+          <select id="edit-mon-auth-type" name="auth_type" onchange="toggleAuthFields(this.value, 'edit')" class="w-full px-3 py-2 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-lg text-[var(--text-main)] focus:outline-none">
+            <option value="none">None</option>
+            <option value="bearer">Bearer Token</option>
+            <option value="basic">HTTP Basic Auth</option>
+          </select>
+        </div>
+
+        <div id="edit-auth-bearer-field" class="hidden">
+          <label class="block font-semibold text-[var(--text-muted)] uppercase mb-1">Bearer Token</label>
+          <input type="password" id="edit-mon-token" name="auth_token" placeholder="eyJhbGciOi..." class="w-full px-3 py-2 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-lg text-[var(--text-main)] font-mono">
+        </div>
+
+        <div id="edit-auth-basic-fields" class="hidden grid grid-cols-2 gap-3">
+          <div>
+            <label class="block font-semibold text-[var(--text-muted)] uppercase mb-1">Basic Username</label>
+            <input type="text" id="edit-mon-user" name="auth_user" class="w-full px-3 py-2 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-lg text-[var(--text-main)]">
+          </div>
+          <div>
+            <label class="block font-semibold text-[var(--text-muted)] uppercase mb-1">Basic Password</label>
+            <input type="password" id="edit-mon-pass" name="auth_pass" class="w-full px-3 py-2 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-lg text-[var(--text-main)]">
+          </div>
+        </div>
+
+        <!-- Custom Headers & Body -->
+        <div>
+          <label class="block font-semibold text-[var(--text-muted)] uppercase mb-1">Custom Request Headers (JSON)</label>
+          <input type="text" id="edit-mon-headers" name="headers_json" class="w-full px-3 py-2 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-lg text-[var(--text-main)] font-mono text-[11px]">
+        </div>
+
+        <div>
+          <label class="block font-semibold text-[var(--text-muted)] uppercase mb-1">Request Body (for POST/PUT)</label>
+          <textarea id="edit-mon-body" name="body" rows="2" class="w-full px-3 py-2 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-lg text-[var(--text-main)] font-mono text-[11px]"></textarea>
+        </div>
+      </div>
+
+      <!-- Keyword & SSL options -->
+      <div id="edit-keyword-tls-options" class="space-y-4 pt-3 border-t border-[var(--border-color)]">
+        <div>
+          <label id="edit-keyword-label" class="block font-semibold text-[var(--text-muted)] uppercase mb-1">Keyword Assertion (optional)</label>
+          <input type="text" id="edit-mon-keyword" name="keyword" class="w-full px-3 py-2 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-lg text-[var(--text-main)]">
+        </div>
+
+        <div class="flex items-center gap-2">
+          <input type="checkbox" id="edit-mon-tls" name="skip_tls_verify" value="true" class="rounded border-[var(--border-color)]">
+          <label for="edit-mon-tls" class="text-xs text-[var(--text-muted)] cursor-pointer">Ignore self-signed SSL/TLS certificates (skip verify)</label>
+        </div>
+      </div>
+
+      <!-- Common timing settings -->
+      <div class="grid grid-cols-3 gap-3 pt-3 border-t border-[var(--border-color)]">
+        <div>
+          <label class="block font-semibold text-[var(--text-muted)] uppercase mb-1">Interval (Sec)</label>
+          <input type="number" id="edit-mon-interval" name="interval_sec" min="5" class="w-full px-3 py-2 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-lg text-[var(--text-main)] font-mono">
+        </div>
+        <div>
+          <label class="block font-semibold text-[var(--text-muted)] uppercase mb-1">Timeout (Sec)</label>
+          <input type="number" id="edit-mon-timeout" name="timeout_sec" min="1" max="60" class="w-full px-3 py-2 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-lg text-[var(--text-main)] font-mono">
+        </div>
+        <div>
+          <label class="block font-semibold text-[var(--text-muted)] uppercase mb-1">Retries (Damping)</label>
+          <input type="number" id="edit-mon-retries" name="retry_count" min="1" max="10" class="w-full px-3 py-2 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-lg text-[var(--text-main)] font-mono">
+        </div>
+      </div>
+
+      <div class="pt-4 flex justify-end gap-3 border-t border-[var(--border-color)]">
+        <button type="button" onclick="document.getElementById('edit-monitor-modal').classList.add('hidden')" class="px-4 py-2 bg-[var(--bg-subtle)] rounded-lg text-[var(--text-muted)] hover:text-[var(--text-main)]">Cancel</button>
+        <button type="submit" class="btn-primary px-5 py-2">Update Monitor</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal: Badge Embed Generator (Uptime Kuma Feature) -->
+<div id="badge-modal" class="hidden fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+  <div class="card max-w-lg w-full p-6 shadow-2xl relative my-8 border border-[var(--border-color)]">
+    <div class="flex items-center justify-between pb-4 border-b border-[var(--border-color)] mb-4">
+      <h3 class="text-base font-bold text-[var(--text-main)] flex items-center gap-2">
+        <span>&#127991;</span> SVG Badges for <span id="badge-modal-name" class="text-emerald-400"></span>
+      </h3>
+      <button onclick="document.getElementById('badge-modal').classList.add('hidden')" class="text-[var(--text-muted)] hover:text-[var(--text-main)] text-xl font-bold">&times;</button>
+    </div>
+
+    <div class="space-y-4 text-xs">
+      <div>
+        <label class="block font-semibold text-[var(--text-muted)] uppercase mb-1">Live Status Badge Preview</label>
+        <div class="p-3 bg-[var(--bg-subtle)] rounded-lg border border-[var(--border-color)] flex items-center justify-between">
+          <img id="badge-preview-status" src="" alt="Status Badge" class="h-6">
+          <button type="button" onclick="copyBadge('status-markdown')" class="px-2.5 py-1 rounded bg-[var(--bg-card)] hover:bg-[var(--border-color)] border border-[var(--border-color)] text-[11px] font-semibold">Copy Markdown</button>
+        </div>
+        <input type="text" id="badge-code-status" readonly class="mt-1 w-full px-2.5 py-1.5 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded text-[11px] font-mono text-[var(--text-muted)]" onclick="this.select()">
+      </div>
+
+      <div>
+        <label class="block font-semibold text-[var(--text-muted)] uppercase mb-1">30-Day Uptime Percentage Badge Preview</label>
+        <div class="p-3 bg-[var(--bg-subtle)] rounded-lg border border-[var(--border-color)] flex items-center justify-between">
+          <img id="badge-preview-uptime" src="" alt="Uptime Badge" class="h-6">
+          <button type="button" onclick="copyBadge('uptime-markdown')" class="px-2.5 py-1 rounded bg-[var(--bg-card)] hover:bg-[var(--border-color)] border border-[var(--border-color)] text-[11px] font-semibold">Copy Markdown</button>
+        </div>
+        <input type="text" id="badge-code-uptime" readonly class="mt-1 w-full px-2.5 py-1.5 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded text-[11px] font-mono text-[var(--text-muted)]" onclick="this.select()">
+      </div>
+
+      <div class="pt-3 border-t border-[var(--border-color)] text-right">
+        <button type="button" onclick="document.getElementById('badge-modal').classList.add('hidden')" class="px-4 py-2 bg-[var(--bg-subtle)] rounded-lg text-xs font-semibold">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Diagnostics Drawer -->
+<div id="diagnostics-drawer" class="hidden fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex justify-end">
+  <div class="bg-[var(--bg-card)] border-l border-[var(--border-color)] w-full max-w-xl h-full p-6 shadow-2xl overflow-y-auto flex flex-col justify-between">
+    <div>
+      <div class="flex items-center justify-between pb-4 border-b border-[var(--border-color)] mb-5">
+        <h3 class="text-base font-bold text-[var(--text-main)] flex items-center gap-2">
+          <span>&#128269;</span> Diagnostic Traces & Waterfall
+        </h3>
+        <button onclick="document.getElementById('diagnostics-drawer').classList.add('hidden')" class="text-[var(--text-muted)] hover:text-[var(--text-main)] text-xl font-bold">&times;</button>
+      </div>
+      <div id="diagnostics-drawer-body">
+        <div class="text-xs text-[var(--text-muted)]">Loading diagnostic waterfall...</div>
+      </div>
+    </div>
+    <div class="pt-6 border-t border-[var(--border-color)] text-right">
+      <button onclick="document.getElementById('diagnostics-drawer').classList.add('hidden')" class="px-4 py-2 bg-[var(--bg-subtle)] rounded-lg text-xs text-[var(--text-main)] font-semibold">Close Drawer</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let activeStatusFilter = 'all';
+
+function filterByStatus(status) {
+  activeStatusFilter = status;
+  document.querySelectorAll('.status-filter-btn').forEach(btn => {
+    if (btn.dataset.status === status) {
+      btn.classList.add('bg-[var(--bg-subtle)]', 'text-[var(--text-main)]', 'font-semibold');
+    } else {
+      btn.classList.remove('bg-[var(--bg-subtle)]', 'text-[var(--text-main)]', 'font-semibold');
+    }
+  });
+  applyFilter();
+}
+
+function applyFilter() {
+  const query = (document.getElementById('monitor-search').value || '').trim().toLowerCase();
+  const items = document.querySelectorAll('.monitor-item');
+
+  items.forEach(card => {
+    const name = card.dataset.name || '';
+    const target = card.dataset.target || '';
+    const proto = card.dataset.proto || '';
+    const status = card.dataset.status || '';
+
+    const matchesQuery = !query || name.includes(query) || target.includes(query) || proto.includes(query);
+    const matchesStatus = activeStatusFilter === 'all' || status === activeStatusFilter;
+
+    if (matchesQuery && matchesStatus) {
+      card.classList.remove('hidden');
+    } else {
+      card.classList.add('hidden');
+    }
+  });
+}
+
+function toggleProtocolFields(proto, prefix) {
+  const httpOpts = document.getElementById(prefix + '-http-options');
+  const kwOpts = document.getElementById(prefix + '-keyword-tls-options');
+  const targetInput = document.getElementById(prefix === 'add' ? 'add-target' : 'edit-mon-target');
+  const kwLabel = document.getElementById(prefix + '-keyword-label');
+  const kwInput = document.getElementById(prefix === 'add' ? 'add-keyword-input' : 'edit-mon-keyword');
+
+  if (proto === 'http' || proto === 'https') {
+    httpOpts.classList.remove('hidden');
+    kwOpts.classList.remove('hidden');
+    if (targetInput) targetInput.placeholder = 'https://api.example.com/health';
+    if (kwLabel) kwLabel.textContent = 'Keyword Assertion (optional)';
+    if (kwInput) kwInput.placeholder = 'Status OK';
+  } else if (proto === 'smtp') {
+    httpOpts.classList.add('hidden');
+    kwOpts.classList.remove('hidden');
+    if (targetInput) targetInput.placeholder = '127.0.0.1:25 or mail.example.com:25';
+    if (kwLabel) kwLabel.textContent = 'Greeting Banner Keyword Assertion (optional)';
+    if (kwInput) kwInput.placeholder = 'e.g. Stalwart, ESMTP or 220';
+  } else {
+    httpOpts.classList.add('hidden');
+    kwOpts.classList.add('hidden');
+    if (targetInput) targetInput.placeholder = '127.0.0.1:5432 or db.example.com:3306';
+  }
+}
+
+function toggleAuthFields(val, prefix) {
+  const bearer = document.getElementById(prefix + '-auth-bearer-field');
+  const basic = document.getElementById(prefix + '-auth-basic-fields');
+  bearer.classList.add('hidden');
+  basic.classList.add('hidden');
+  if (val === 'bearer') bearer.classList.remove('hidden');
+  if (val === 'basic') basic.classList.remove('hidden');
+}
+
+async function openEditMonitorModal(id) {
+  let mon = null;
+  const scriptTag = document.getElementById('mon-data-' + id);
+  if (scriptTag) {
+    try {
+      mon = JSON.parse(scriptTag.textContent);
+    } catch (e) {}
+  }
+  if (!mon) {
+    try {
+      const res = await fetch('/admin/monitors/' + id);
+      if (!res.ok) throw new Error('Status ' + res.status);
+      mon = await res.json();
+    } catch (e) {
+      alert('Failed to load monitor details: ' + e);
+      return;
+    }
+  }
+
+  document.getElementById('edit-monitor-form').action = '/admin/monitors/' + mon.id + '/edit';
+  document.getElementById('edit-mon-name').value = mon.name || '';
+  document.getElementById('edit-mon-proto').value = mon.protocol || 'https';
+  document.getElementById('edit-mon-target').value = mon.target || '';
+  document.getElementById('edit-mon-method').value = mon.method || 'GET';
+  document.getElementById('edit-mon-code').value = mon.expected_code || 200;
+
+  document.getElementById('edit-mon-auth-type').value = mon.auth_type || 'none';
+  document.getElementById('edit-mon-token').value = mon.auth_token || '';
+  document.getElementById('edit-mon-user').value = mon.auth_user || '';
+  document.getElementById('edit-mon-pass').value = mon.auth_pass || '';
+  toggleAuthFields(mon.auth_type || 'none', 'edit');
+
+  document.getElementById('edit-mon-headers').value = mon.headers_json || '';
+  document.getElementById('edit-mon-body').value = mon.body || '';
+  document.getElementById('edit-mon-keyword').value = mon.keyword || '';
+  document.getElementById('edit-mon-tls').checked = !!mon.skip_tls_verify;
+
+  document.getElementById('edit-mon-interval').value = mon.interval_sec || 60;
+  document.getElementById('edit-mon-timeout').value = mon.timeout_sec || 10;
+  document.getElementById('edit-mon-retries').value = mon.retry_count || 2;
+
+  toggleProtocolFields(mon.protocol || 'https', 'edit');
+  document.getElementById('edit-monitor-modal').classList.remove('hidden');
+}
+
+let activeStatusBadgeMD = '';
+let activeUptimeBadgeMD = '';
+
+function openBadgeModal(id, name) {
+  const origin = window.location.origin;
+  const statusURL = origin + '/api/badge/' + id + '/status';
+  const uptimeURL = origin + '/api/badge/' + id + '/uptime';
+
+  document.getElementById('badge-modal-name').textContent = name;
+  document.getElementById('badge-preview-status').src = statusURL;
+  document.getElementById('badge-preview-uptime').src = uptimeURL;
+
+  activeStatusBadgeMD = `![${name} Status](${statusURL})`;
+  activeUptimeBadgeMD = `![${name} 30d Uptime](${uptimeURL})`;
+
+  document.getElementById('badge-code-status').value = activeStatusBadgeMD;
+  document.getElementById('badge-code-uptime').value = activeUptimeBadgeMD;
+
+  document.getElementById('badge-modal').classList.remove('hidden');
+}
+
+function copyBadge(type) {
+  const text = type === 'status-markdown' ? activeStatusBadgeMD : activeUptimeBadgeMD;
+  navigator.clipboard.writeText(text).then(() => {
+    alert('Copied Markdown badge snippet to clipboard!');
+  });
+}
+
+// Auto-Refresh NOC Polling
+let autoRefreshTimer = null;
+let autoRefreshEnabled = localStorage.getItem('uptime_monitors_autorefresh') !== 'false';
+
+function updateAutoRefreshUI() {
+  const dot = document.getElementById('auto-refresh-dot');
+  const label = document.getElementById('auto-refresh-label');
+  if (!dot || !label) return;
+  if (autoRefreshEnabled) {
+    dot.className = 'w-2 h-2 rounded-full bg-emerald-500 animate-pulse';
+    label.textContent = 'Auto 30s';
+  } else {
+    dot.className = 'w-2 h-2 rounded-full bg-gray-500';
+    label.textContent = 'Paused';
+  }
+}
+
+function toggleAutoRefresh() {
+  autoRefreshEnabled = !autoRefreshEnabled;
+  localStorage.setItem('uptime_monitors_autorefresh', autoRefreshEnabled ? 'true' : 'false');
+  updateAutoRefreshUI();
+  if (autoRefreshEnabled) {
+    scheduleNextRefresh();
+  } else if (autoRefreshTimer) {
+    clearTimeout(autoRefreshTimer);
+    autoRefreshTimer = null;
+  }
+}
+
+function scheduleNextRefresh() {
+  if (autoRefreshTimer) clearTimeout(autoRefreshTimer);
+  if (!autoRefreshEnabled) return;
+  autoRefreshTimer = setTimeout(() => {
+    const addOpen = document.getElementById('monitor-modal') && !document.getElementById('monitor-modal').classList.contains('hidden');
+    const editOpen = document.getElementById('edit-monitor-modal') && !document.getElementById('edit-monitor-modal').classList.contains('hidden');
+    const badgeOpen = document.getElementById('badge-modal') && !document.getElementById('badge-modal').classList.contains('hidden');
+    const isTyping = document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA');
+
+    if (!addOpen && !editOpen && !badgeOpen && !isTyping) {
+      window.location.reload();
+    } else {
+      scheduleNextRefresh();
+    }
+  }, 30000);
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  updateAutoRefreshUI();
+  if (autoRefreshEnabled) {
+    scheduleNextRefresh();
+  }
+});
+</script>
+{{ end }}

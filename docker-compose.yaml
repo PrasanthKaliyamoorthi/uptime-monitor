@@ -1,0 +1,16 @@
+version: "3.8"
+
+services:
+  uptime-monitor:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: uptime-monitor
+    restart: unless-stopped
+    ports:
+      - "8786:8080"
+    environment:
+      - PORT=8080
+      - DB_PATH=/data/uptime.db
+    volumes:
+      - ./data:/data

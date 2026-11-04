@@ -1,0 +1,125 @@
+{{ define "admin_content" }}
+<div class="space-y-8">
+  <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <div>
+      <h2 class="text-xl font-bold text-[var(--text-main)]">Status Pages</h2>
+      <p class="text-xs text-[var(--text-muted)] mt-0.5">Configure multi-domain routing (e.g. status.git.com, status.terminal.in), themes, and service associations.</p>
+    </div>
+    <button onclick="document.getElementById('page-modal').classList.remove('hidden')" class="btn-primary text-xs flex items-center gap-1.5 self-start sm:self-auto">
+      <span>+ Create Status Page</span>
+    </button>
+  </div>
+
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+    {{ range .Pages }}
+    <div class="card p-6 space-y-4">
+      <div class="flex items-start justify-between">
+        <div>
+          <div class="flex items-center gap-2">
+            <h3 class="text-base font-bold text-[var(--text-main)]">{{ .Name }}</h3>
+            {{ if .IsDefault }}
+            <span class="text-[10px] uppercase font-semibold px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">Default</span>
+            {{ end }}
+          </div>
+          <div class="text-xs text-[var(--text-muted)] mt-1 font-mono">
+            {{ if .Domain }}Domain: <span class="text-emerald-400 font-semibold">{{ .Domain }}</span>{{ else }}Slug: /status?page={{ .Slug }}{{ end }}
+          </div>
+        </div>
+
+        <span class="text-xs uppercase px-2 py-1 rounded bg-[var(--bg-subtle)] border border-[var(--border-color)] text-[var(--text-muted)] font-mono">
+          {{ .Theme }}
+        </span>
+      </div>
+
+      {{ if .Description }}
+      <p class="text-xs text-[var(--text-muted)] leading-relaxed">{{ .Description }}</p>
+      {{ end }}
+
+      <div class="pt-4 border-t border-[var(--border-color)] flex items-center justify-between">
+        <a href="{{ if .Domain }}http://{{ .Domain }}:8080/{{ else }}/status?page={{ .Slug }}{{ end }}" target="_blank" class="text-xs text-emerald-400 hover:underline flex items-center gap-1">
+          <span>Open Public View</span> &nearr;
+        </a>
+
+        <div class="flex items-center gap-2">
+          <form method="POST" action="/admin/pages/{{ .ID }}/delete" onsubmit="return confirm('Delete this status page?')">
+            <button type="submit" class="text-xs text-red-400 hover:text-red-300 px-2.5 py-1 rounded border border-red-500/20 hover:bg-red-500/10">
+              Delete
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+    {{ end }}
+  </div>
+</div>
+
+<!-- Modal: Create Status Page -->
+<div id="page-modal" class="hidden fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+  <div class="card max-w-xl w-full p-6 shadow-2xl relative my-8 border border-[var(--border-color)]">
+    <div class="flex items-center justify-between pb-4 border-b border-[var(--border-color)] mb-5">
+      <h3 class="text-base font-bold text-[var(--text-main)]">Create Status Page</h3>
+      <button onclick="document.getElementById('page-modal').classList.add('hidden')" class="text-[var(--text-muted)] hover:text-[var(--text-main)] text-xl font-bold">&times;</button>
+    </div>
+
+    <form method="POST" action="/admin/pages" class="space-y-4 text-xs">
+      <div>
+        <label class="block font-semibold text-[var(--text-muted)] uppercase mb-1">Status Page Title</label>
+        <input type="text" name="name" required placeholder="Terminal Systems Status" class="w-full px-3 py-2 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-lg text-[var(--text-main)] focus:outline-none">
+      </div>
+
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block font-semibold text-[var(--text-muted)] uppercase mb-1">URL Slug</label>
+          <input type="text" name="slug" required placeholder="terminal" class="w-full px-3 py-2 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-lg text-[var(--text-main)] font-mono">
+        </div>
+        <div>
+          <label class="block font-semibold text-[var(--text-muted)] uppercase mb-1">Custom Host / Domain</label>
+          <input type="text" name="domain" placeholder="status.terminal.in" class="w-full px-3 py-2 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-lg text-[var(--text-main)] font-mono">
+        </div>
+      </div>
+
+      <div>
+        <label class="block font-semibold text-[var(--text-muted)] uppercase mb-1">Description</label>
+        <textarea name="description" rows="2" placeholder="Real-time system health and service status." class="w-full px-3 py-2 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-lg text-[var(--text-main)]"></textarea>
+      </div>
+
+      <!-- Theme Selection -->
+      <div>
+        <label class="block font-semibold text-[var(--text-muted)] uppercase mb-1">Default Theme (6 Popular Presets)</label>
+        <select name="theme" class="w-full px-3 py-2 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-lg text-[var(--text-main)]">
+          <option value="openstatus-slate" selected>OpenStatus Slate (Default)</option>
+          <option value="catppuccin-mocha">Catppuccin Mocha (Dark Pastel)</option>
+          <option value="catppuccin-latte">Catppuccin Latte (Light Warm)</option>
+          <option value="tokyo-night">Tokyo Night (Indigo Blue)</option>
+          <option value="nord">Nord (Arctic Cool Slate)</option>
+          <option value="dracula">Dracula (Vibrant Dark)</option>
+        </select>
+      </div>
+
+      <!-- Attach Monitors -->
+      <div>
+        <label class="block font-semibold text-[var(--text-muted)] uppercase mb-2">Attached Monitors</label>
+        <div class="max-h-40 overflow-y-auto space-y-2 p-3 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-lg">
+          {{ range .AllMonitors }}
+          <label class="flex items-center gap-2.5 cursor-pointer">
+            <input type="checkbox" name="monitor_ids" value="{{ .ID }}" checked class="rounded border-[var(--border-color)]">
+            <span class="font-medium text-[var(--text-main)]">{{ .Name }}</span>
+            <span class="text-[10px] font-mono text-[var(--text-muted)] uppercase">({{ .Protocol }})</span>
+          </label>
+          {{ end }}
+        </div>
+      </div>
+
+      <div class="flex items-center gap-2 pt-2">
+        <input type="checkbox" name="is_default" id="is_default" value="true" class="rounded">
+        <label for="is_default" class="text-xs text-[var(--text-muted)]">Set as the default status page for generic / requests</label>
+      </div>
+
+      <div class="pt-4 flex justify-end gap-3">
+        <button type="button" onclick="document.getElementById('page-modal').classList.add('hidden')" class="px-4 py-2 bg-[var(--bg-subtle)] rounded-lg text-[var(--text-muted)]">Cancel</button>
+        <button type="submit" class="btn-primary px-5 py-2">Save Page</button>
+      </div>
+    </form>
+  </div>
+</div>
+{{ end }}

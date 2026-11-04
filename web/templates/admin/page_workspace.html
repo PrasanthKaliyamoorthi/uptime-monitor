@@ -1,0 +1,702 @@
+{{ define "admin_content" }}
+<div class="space-y-6">
+  <!-- Breadcrumb and Page Header -->
+  <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-[var(--border-color)]">
+    <div>
+      <div class="flex items-center gap-2 text-xs text-[var(--text-muted)] mb-1">
+        <a href="/admin" class="hover:text-[var(--text-main)] flex items-center gap-1">&larr; All Status Pages</a>
+        <span>/</span>
+        <span class="text-[var(--text-main)] font-semibold">{{ .Page.Name }}</span>
+      </div>
+      <div class="flex items-center gap-3">
+        {{ if .Page.LogoURL }}
+        <img src="{{ safeURL .Page.LogoURL }}" alt="{{ .Page.Name }}" class="h-9 w-auto max-w-[80px] max-h-9 object-contain rounded-lg border border-[var(--border-color)] p-1 bg-[var(--bg-subtle)]">
+        {{ end }}
+        <h2 class="text-2xl font-extrabold text-[var(--text-main)]">{{ .Page.Name }}</h2>
+        <span class="text-[10px] uppercase font-mono px-2 py-0.5 rounded bg-[var(--bg-subtle)] border border-[var(--border-color)] text-[var(--text-muted)]">
+          Theme: {{ .Page.Theme }}
+        </span>
+      </div>
+      <div class="text-xs text-[var(--text-muted)] mt-1 font-mono">
+        {{ if .Page.Domain }}Domain: <span class="text-emerald-400 font-semibold">{{ .Page.Domain }}</span>{{ else }}Slug: /status?page={{ .Page.Slug }}{{ end }}
+      </div>
+    </div>
+
+    <div class="flex items-center gap-3 self-start sm:self-auto">
+      <a href="/status?page={{ .Page.Slug }}" target="_blank" class="px-3 py-1.5 rounded-lg border border-[var(--border-color)] text-xs text-[var(--text-muted)] hover:text-[var(--text-main)] flex items-center gap-1.5">
+        <span>View Public Status</span> &nearr;
+      </a>
+      <a href="/admin/pages/{{ .Page.ID }}/export" download="page-{{ .Page.Slug }}-backup-v1.json" class="btn-primary text-xs py-1.5 px-3 flex items-center gap-1.5">
+        <span>&darr;</span> Export Page JSON
+      </a>
+    </div>
+  </div>
+
+  <!-- Messages -->
+  {{ if .Message }}
+  <div class="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs">
+    {{ .Message }}
+  </div>
+  {{ end }}
+  {{ if .Error }}
+  <div class="p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-xs">
+    {{ .Error }}
+  </div>
+  {{ end }}
+
+  <!-- Tab Bar -->
+  <div class="flex items-center gap-2 border-b border-[var(--border-color)] pb-px text-xs font-semibold">
+    <button onclick="switchTab('tab-monitors')" id="btn-tab-monitors" class="tab-btn px-4 py-2 border-b-2 border-emerald-400 text-emerald-400">
+      Monitored Endpoints ({{ len .Monitors }})
+    </button>
+    <button onclick="switchTab('tab-incidents')" id="btn-tab-incidents" class="tab-btn px-4 py-2 border-b-2 border-transparent text-[var(--text-muted)] hover:text-[var(--text-main)]">
+      Incidents & Maintenance ({{ len .Incidents }})
+    </button>
+    <button onclick="switchTab('tab-settings')" id="btn-tab-settings" class="tab-btn px-4 py-2 border-b-2 border-transparent text-[var(--text-muted)] hover:text-[var(--text-main)]">
+      Page Settings
+    </button>
+    <button onclick="switchTab('tab-backup')" id="btn-tab-backup" class="tab-btn px-4 py-2 border-b-2 border-transparent text-[var(--text-muted)] hover:text-[var(--text-main)]">
+      Page Backup & Restore
+    </button>
+  </div>
+
+  <!-- TAB 1: MONITORS -->
+  <div id="tab-monitors" class="tab-pane space-y-4">
+    <div class="flex items-center justify-between">
+      <div>
+        <h3 class="text-base font-bold text-[var(--text-main)]">Endpoints for {{ .Page.Name }}</h3>
+        <p class="text-xs text-[var(--text-muted)]">These endpoints are monitored and displayed on this status page.</p>
+      </div>
+      <button onclick="document.getElementById('monitor-modal').classList.remove('hidden')" class="btn-primary text-xs flex items-center gap-1.5">
+        <span>+ Add Endpoint to this Page</span>
+      </button>
+    </div>
+
+    <div class="card overflow-hidden">
+      {{ if .Monitors }}
+      <div class="overflow-x-auto">
+        <table class="w-full text-left text-xs">
+          <thead class="bg-[var(--bg-subtle)] border-b border-[var(--border-color)] text-[var(--text-muted)] uppercase font-semibold">
+            <tr>
+              <th class="py-3 px-4">Status</th>
+              <th class="py-3 px-4">Name & Target</th>
+              <th class="py-3 px-4">Interval</th>
+              <th class="py-3 px-4">Last Check</th>
+              <th class="py-3 px-4">Latency</th>
+              <th class="py-3 px-4 text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-[var(--border-color)]">
+            {{ range .Monitors }}
+            <tr class="hover:bg-[var(--bg-subtle)]/50 transition-colors">
+              <td class="py-3 px-4 whitespace-nowrap">
+                <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium {{ if eq .CurrentStatus "up" }}bg-emerald-500/10 text-emerald-400 border border-emerald-500/20{{ else if eq .CurrentStatus "degraded" }}bg-amber-500/10 text-amber-400 border border-amber-500/20{{ else if eq .CurrentStatus "down" }}bg-red-500/10 text-red-400 border border-red-500/20{{ else }}bg-gray-500/10 text-gray-400 border border-gray-500/20{{ end }}">
+                  <span class="w-1.5 h-1.5 rounded-full {{ if eq .CurrentStatus "up" }}bg-emerald-400{{ else if eq .CurrentStatus "degraded" }}bg-amber-400{{ else if eq .CurrentStatus "down" }}bg-red-400{{ else }}bg-gray-400{{ end }}"></span>
+                  {{ .CurrentStatus }}
+                </span>
+              </td>
+
+              <td class="py-3 px-4">
+                <div class="font-semibold text-sm text-[var(--text-main)]">{{ .Name }}</div>
+                <div class="text-[var(--text-muted)] font-mono text-[11px] truncate max-w-xs mt-0.5 flex items-center gap-1.5">
+                  <span class="uppercase px-1.5 py-0.5 rounded text-[9px] bg-[var(--bg-subtle)] border border-[var(--border-color)]">{{ .Protocol }}</span>
+                  <span>{{ .Target }}</span>
+                </div>
+              </td>
+
+              <td class="py-3 px-4 whitespace-nowrap text-[var(--text-muted)]">
+                {{ .IntervalSec }}s (retries: {{ .RetryCount }})
+              </td>
+
+              <td class="py-3 px-4 whitespace-nowrap text-[var(--text-muted)]">
+                {{ if .LastCheckedAt }}{{ .LastCheckedAt.Format "15:04:05 UTC" }}{{ else }}Never{{ end }}
+              </td>
+
+              <td class="py-3 px-4 whitespace-nowrap font-mono">
+                {{ if gt .LastLatencyMs 0 }}{{ .LastLatencyMs }}ms{{ else }}-{{ end }}
+              </td>
+
+              <td class="py-3 px-4 whitespace-nowrap text-right space-x-2">
+                <button hx-post="/admin/monitors/{{ .ID }}/check"
+                        hx-swap="none"
+                        class="px-2 py-1 rounded bg-[var(--bg-subtle)] hover:bg-[var(--border-color)] border border-[var(--border-color)] text-[var(--text-main)] transition-colors">
+                  Check Now
+                </button>
+
+                <form method="POST" action="/admin/monitors/{{ .ID }}/toggle" class="inline">
+                  <button type="submit"
+                          class="px-2 py-1 rounded border transition-colors {{ if .IsActive }}bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border-amber-500/30{{ else }}bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border-emerald-500/30{{ end }}">
+                    {{ if .IsActive }}Pause{{ else }}Resume{{ end }}
+                  </button>
+                </form>
+
+                <button hx-get="/admin/monitors/{{ .ID }}/diagnostics"
+                        hx-target="#diagnostics-drawer-body"
+                        onclick="document.getElementById('diagnostics-drawer').classList.remove('hidden')"
+                        class="px-2 py-1 rounded bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/30 transition-colors">
+                  Diagnostics
+                </button>
+
+                <form method="POST" action="/admin/monitors/{{ .ID }}/delete" class="inline" onsubmit="return confirm('Delete this monitor?')">
+                  <button type="submit" class="px-2 py-1 rounded bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 transition-colors">
+                    Delete
+                  </button>
+                </form>
+              </td>
+            </tr>
+            {{ end }}
+          </tbody>
+        </table>
+      </div>
+      {{ else }}
+      <div class="p-12 text-center text-[var(--text-muted)] text-sm">
+        No endpoints added to this status page yet. Click "+ Add Endpoint to this Page" above.
+      </div>
+      {{ end }}
+    </div>
+  </div>
+
+  <!-- TAB 2: INCIDENTS -->
+  <div id="tab-incidents" class="tab-pane hidden space-y-4">
+    <div class="flex items-center justify-between">
+      <div>
+        <h3 class="text-base font-bold text-[var(--text-main)]">Incident Reports for {{ .Page.Name }}</h3>
+        <p class="text-xs text-[var(--text-muted)]">Incidents and maintenance windows published here appear strictly on this status page.</p>
+      </div>
+      <button onclick="document.getElementById('incident-modal').classList.remove('hidden')" class="btn-primary text-xs flex items-center gap-1.5">
+        <span>+ Report Incident / Maintenance</span>
+      </button>
+    </div>
+
+    <div class="space-y-4">
+      {{ if .Incidents }}
+        {{ range .Incidents }}
+        <div class="card p-5 space-y-3">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <span class="text-xs uppercase font-bold tracking-wider px-2 py-0.5 rounded {{ if eq .Severity "critical" }}bg-red-500/20 text-red-400{{ else if eq .Severity "major" }}bg-orange-500/20 text-orange-400{{ else if eq .Severity "maintenance" }}bg-blue-500/20 text-blue-400{{ else }}bg-yellow-500/20 text-yellow-400{{ end }}">
+                {{ if .IsMaintenance }}Maintenance{{ else }}{{ .Severity }}{{ end }}
+              </span>
+              <h4 class="text-base font-semibold text-[var(--text-main)]">{{ .Title }}</h4>
+            </div>
+            <div class="text-xs text-[var(--text-muted)] font-mono">
+              Status: <span class="uppercase font-semibold text-[var(--text-main)]">{{ .Status }}</span> &bull; {{ .CreatedAt.Format "Jan 02, 15:04" }}
+            </div>
+          </div>
+
+          {{ if .Updates }}
+          <div class="space-y-2 pl-3 border-l-2 border-[var(--border-color)]">
+            {{ range .Updates }}
+            <div class="text-xs">
+              <div class="flex items-center gap-2">
+                <span class="font-bold uppercase text-[10px] text-[var(--text-main)]">{{ .Status }}</span>
+                <span class="text-[var(--text-muted)]">&bull; {{ .CreatedAt.Format "15:04:05 UTC" }}</span>
+              </div>
+              <p class="text-[var(--text-muted)]">{{ .Message }}</p>
+            </div>
+            {{ end }}
+          </div>
+          {{ end }}
+
+          <div class="pt-3 border-t border-[var(--border-color)] flex items-center justify-between">
+            <form method="POST" action="/admin/incidents/{{ .ID }}/update" class="flex flex-wrap items-center gap-2 text-xs">
+              <select name="status" class="px-2 py-1 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded text-[var(--text-main)]">
+                <option value="investigating">Investigating</option>
+                <option value="identified">Identified</option>
+                <option value="monitoring">Monitoring</option>
+                <option value="resolved">Resolved</option>
+              </select>
+              <input type="text" name="message" required placeholder="Add timeline update message..." class="px-3 py-1 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded text-[var(--text-main)] w-72">
+              <input type="datetime-local" name="created_at" title="Optional update timestamp (defaults to now)" class="px-2 py-1 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded text-[var(--text-main)] text-[11px]">
+              <button type="submit" class="px-3 py-1 bg-emerald-500 text-white rounded font-medium hover:bg-emerald-600 transition-colors">
+                Add Update
+              </button>
+            </form>
+
+            <div class="flex items-center gap-2">
+              <button type="button" onclick="openEditIncidentModal('{{ .ID }}', '{{ .Title }}', '{{ .Status }}', '{{ .Severity }}', '{{ formatDateTimeLocal .CreatedAt }}', '{{ formatDateTimeLocal .ResolvedAt }}', '{{ formatDateTimeLocal .ScheduledStart }}', '{{ formatDateTimeLocal .ScheduledEnd }}')" class="text-xs text-sky-400 hover:text-sky-300 px-2 py-1">
+                Edit
+              </button>
+              <form method="POST" action="/admin/incidents/{{ .ID }}/delete" onsubmit="return confirm('Delete this incident?')">
+                <button type="submit" class="text-xs text-red-400 hover:text-red-300 px-2 py-1">Delete</button>
+              </form>
+            </div>
+          </div>
+        </div>
+        {{ end }}
+      {{ else }}
+      <div class="card p-12 text-center text-[var(--text-muted)] text-sm">
+        No active or past incidents recorded for this status page.
+      </div>
+      {{ end }}
+    </div>
+  </div>
+
+  <!-- TAB 3: SETTINGS -->
+  <div id="tab-settings" class="tab-pane hidden">
+    <div class="card max-w-2xl p-6 space-y-4">
+      <h3 class="text-base font-bold text-[var(--text-main)]">Page Configuration</h3>
+      <form method="POST" action="/admin/pages/{{ .Page.ID }}/settings" enctype="multipart/form-data" class="space-y-4 text-xs">
+        <div>
+          <label class="block font-semibold text-[var(--text-muted)] uppercase mb-1">Status Page Title</label>
+          <input type="text" name="name" value="{{ .Page.Name }}" required class="w-full px-3 py-2 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-lg text-[var(--text-main)]">
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block font-semibold text-[var(--text-muted)] uppercase mb-1">URL Slug</label>
+            <input type="text" name="slug" value="{{ .Page.Slug }}" required class="w-full px-3 py-2 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-lg text-[var(--text-main)] font-mono">
+          </div>
+          <div>
+            <label class="block font-semibold text-[var(--text-muted)] uppercase mb-1">Custom Host / Domain</label>
+            <input type="text" name="domain" value="{{ .Page.Domain }}" placeholder="status.git.com" class="w-full px-3 py-2 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-lg text-[var(--text-main)] font-mono">
+          </div>
+        </div>
+
+        <div>
+          <label class="block font-semibold text-[var(--text-muted)] uppercase mb-1">Description</label>
+          <textarea name="description" rows="2" class="w-full px-3 py-2 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-lg text-[var(--text-main)]">{{ .Page.Description }}</textarea>
+        </div>
+
+        <div>
+          <label class="block font-semibold text-[var(--text-muted)] uppercase mb-1">Brand Logo (File Upload or Image URL)</label>
+          {{ if .Page.LogoURL }}
+          <div class="flex items-center gap-3 mb-2 p-2 rounded-lg bg-[var(--bg-subtle)] border border-[var(--border-color)]">
+            <img src="{{ safeURL .Page.LogoURL }}" alt="{{ .Page.Name }}" class="h-10 w-auto max-w-[80px] max-h-10 object-contain rounded border border-[var(--border-color)] bg-black/20 p-1">
+            <div class="text-xs">
+              <span class="text-[var(--text-main)] font-medium">Current Logo</span>
+              <div class="flex items-center gap-1.5 mt-1">
+                <input type="checkbox" name="remove_logo" id="remove_logo" value="true" class="rounded">
+                <label for="remove_logo" class="text-red-400 hover:text-red-300 cursor-pointer">Remove this logo</label>
+              </div>
+            </div>
+          </div>
+          {{ end }}
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <span class="text-[11px] text-[var(--text-muted)] mb-1 block">Upload new file:</span>
+              <input type="file" name="logo_file" accept="image/*" class="w-full text-xs text-[var(--text-muted)] file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-[var(--bg-subtle)] file:text-[var(--text-main)] hover:file:bg-[var(--border-color)]">
+            </div>
+            <div>
+              <span class="text-[11px] text-[var(--text-muted)] mb-1 block">Or paste image URL:</span>
+              <input type="text" name="logo_url" value="{{ .Page.LogoURL }}" placeholder="https://example.com/logo.png" class="w-full px-3 py-2 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-lg text-[var(--text-main)] text-xs">
+            </div>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="block font-semibold text-[var(--text-muted)] uppercase mb-1">Theme (6 Popular Presets)</label>
+            <select name="theme" class="w-full px-3 py-2 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-lg text-[var(--text-main)]">
+              <option value="openstatus-slate" {{ if eq .Page.Theme "openstatus-slate" }}selected{{ end }}>OpenStatus Slate</option>
+              <option value="catppuccin-mocha" {{ if eq .Page.Theme "catppuccin-mocha" }}selected{{ end }}>Catppuccin Mocha</option>
+              <option value="catppuccin-latte" {{ if eq .Page.Theme "catppuccin-latte" }}selected{{ end }}>Catppuccin Latte</option>
+              <option value="tokyo-night" {{ if eq .Page.Theme "tokyo-night" }}selected{{ end }}>Tokyo Night</option>
+              <option value="nord" {{ if eq .Page.Theme "nord" }}selected{{ end }}>Nord</option>
+              <option value="dracula" {{ if eq .Page.Theme "dracula" }}selected{{ end }}>Dracula</option>
+            </select>
+          </div>
+          <div>
+            <label class="block font-semibold text-[var(--text-muted)] uppercase mb-1">History Days to Monitor & Show</label>
+            <select name="history_days" class="w-full px-3 py-2 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-lg text-[var(--text-main)]">
+              <option value="7" {{ if eq .Page.HistoryDays 7 }}selected{{ end }}>7 Days (Last 1 Week)</option>
+              <option value="14" {{ if eq .Page.HistoryDays 14 }}selected{{ end }}>14 Days (Last 2 Weeks)</option>
+              <option value="30" {{ if eq .Page.HistoryDays 30 }}selected{{ end }}>30 Days (Last 1 Month)</option>
+              <option value="60" {{ if or (eq .Page.HistoryDays 60) (not .Page.HistoryDays) }}selected{{ end }}>60 Days (Default 2 Months)</option>
+              <option value="90" {{ if eq .Page.HistoryDays 90 }}selected{{ end }}>90 Days (Last Quarter)</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-2 pt-2">
+          <input type="checkbox" name="is_default" id="page_is_default" value="true" {{ if .Page.IsDefault }}checked{{ end }} class="rounded">
+          <label for="page_is_default" class="text-xs text-[var(--text-muted)]">Set as default status page</label>
+        </div>
+
+        <div class="pt-3">
+          <button type="submit" class="btn-primary px-5 py-2">Save Page Settings</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- TAB 4: PER-PAGE BACKUP & RESTORE -->
+  <div id="tab-backup" class="tab-pane hidden space-y-6">
+    <div class="card max-w-2xl p-6 space-y-4">
+      <h3 class="text-base font-bold text-[var(--text-main)]">Export {{ .Page.Name }}</h3>
+      <p class="text-xs text-[var(--text-muted)] leading-relaxed">
+        Download a scoped JSON bundle containing exclusively this status page's configuration, all its attached endpoints, and its full incident timeline.
+      </p>
+      <div>
+        <a href="/admin/pages/{{ .Page.ID }}/export" download="page-{{ .Page.Slug }}-backup-v1.json" class="btn-primary inline-flex items-center gap-2 text-xs">
+          <span>&darr;</span> Download {{ .Page.Name }} Backup (v1 JSON)
+        </a>
+      </div>
+    </div>
+
+    <div class="card max-w-2xl p-6 space-y-4">
+      <h3 class="text-base font-bold text-[var(--text-main)]">Restore Into {{ .Page.Name }}</h3>
+      <p class="text-xs text-[var(--text-muted)] leading-relaxed">
+        Upload a status page backup JSON to import or restore endpoints and incidents specifically into this tenant.
+      </p>
+      <form method="POST" action="/admin/pages/{{ .Page.ID }}/import" enctype="multipart/form-data" class="space-y-4 text-xs">
+        <div>
+          <input type="file" name="backup_file" accept=".json,application/json" required
+                 class="block w-full text-xs text-[var(--text-muted)] file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-[var(--bg-subtle)] file:text-[var(--text-main)] hover:file:bg-[var(--border-color)]">
+        </div>
+        <button type="submit" class="px-4 py-2 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-lg text-[var(--text-main)] font-medium hover:bg-[var(--border-color)] transition-colors">
+          Upload and Restore Endpoints &rarr;
+        </button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Add Monitor to this Page -->
+<div id="monitor-modal" class="hidden fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+  <div class="modal-card max-w-xl w-full p-6 relative my-8">
+    <div class="flex items-center justify-between pb-4 border-b border-[var(--border-color)] mb-5">
+      <h3 class="text-base font-bold text-[var(--text-main)]">Add Endpoint to {{ .Page.Name }}</h3>
+      <button onclick="document.getElementById('monitor-modal').classList.add('hidden')" class="text-[var(--text-muted)] hover:text-[var(--text-main)] text-xl font-bold">&times;</button>
+    </div>
+
+    <form method="POST" action="/admin/monitors" class="space-y-4 text-xs">
+      <!-- Hidden Status Page ID to ensure monitor is added to this page -->
+      <input type="hidden" name="status_page_id" value="{{ .Page.ID }}">
+
+      <div>
+        <label class="block font-semibold text-[var(--text-muted)] uppercase mb-1">Endpoint Name</label>
+        <input type="text" name="name" required placeholder="API Gateway" class="w-full px-3 py-2 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-lg text-[var(--text-main)] focus:outline-none focus:border-emerald-500">
+      </div>
+
+      <div class="grid grid-cols-3 gap-3">
+        <div>
+          <label class="block font-semibold text-[var(--text-muted)] uppercase mb-1">Protocol</label>
+          <select name="protocol" id="modal-protocol-select" onchange="toggleProtocolFields(this.value)" class="w-full px-3 py-2 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-lg text-[var(--text-main)]">
+            <option value="https" selected>HTTPS</option>
+            <option value="http">HTTP</option>
+            <option value="tcp">TCP Port</option>
+            <option value="smtp">SMTP</option>
+          </select>
+        </div>
+        <div class="col-span-2">
+          <label class="block font-semibold text-[var(--text-muted)] uppercase mb-1">Target (URL or Host:Port)</label>
+          <input type="text" name="target" required placeholder="https://api.example.com/health" class="w-full px-3 py-2 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-lg text-[var(--text-main)] font-mono">
+        </div>
+      </div>
+
+      <div id="modal-http-options" class="space-y-4 pt-3 border-t border-[var(--border-color)]">
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block font-semibold text-[var(--text-muted)] uppercase mb-1">HTTP Method</label>
+            <select name="method" class="w-full px-3 py-2 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-lg text-[var(--text-main)]">
+              <option value="GET" selected>GET</option>
+              <option value="HEAD">HEAD</option>
+              <option value="POST">POST</option>
+              <option value="PUT">PUT</option>
+            </select>
+          </div>
+          <div>
+            <label class="block font-semibold text-[var(--text-muted)] uppercase mb-1">Expected Status Code</label>
+            <input type="number" name="expected_code" value="200" class="w-full px-3 py-2 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-lg text-[var(--text-main)]">
+          </div>
+        </div>
+
+        <div>
+          <label class="block font-semibold text-[var(--text-muted)] uppercase mb-1">Authentication Type</label>
+          <select name="auth_type" onchange="toggleAuthFields(this.value)" class="w-full px-3 py-2 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-lg text-[var(--text-main)]">
+            <option value="none" selected>None</option>
+            <option value="bearer">Bearer Token</option>
+            <option value="basic">HTTP Basic Auth</option>
+          </select>
+        </div>
+
+        <div id="modal-auth-bearer" class="hidden">
+          <label class="block font-semibold text-[var(--text-muted)] uppercase mb-1">Bearer Token</label>
+          <input type="password" name="auth_token" placeholder="eyJhbGciOi..." class="w-full px-3 py-2 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-lg text-[var(--text-main)] font-mono">
+        </div>
+
+        <div id="modal-auth-basic" class="hidden grid grid-cols-2 gap-3">
+          <div>
+            <label class="block font-semibold text-[var(--text-muted)] uppercase mb-1">Basic Username</label>
+            <input type="text" name="auth_user" class="w-full px-3 py-2 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-lg text-[var(--text-main)]">
+          </div>
+          <div>
+            <label class="block font-semibold text-[var(--text-muted)] uppercase mb-1">Basic Password</label>
+            <input type="password" name="auth_pass" class="w-full px-3 py-2 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-lg text-[var(--text-main)]">
+          </div>
+        </div>
+
+        <div>
+          <label class="block font-semibold text-[var(--text-muted)] uppercase mb-1">Custom Request Headers (JSON)</label>
+          <input type="text" name="headers_json" placeholder='{"X-API-Key": "secret123"}' class="w-full px-3 py-2 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-lg text-[var(--text-main)] font-mono text-[11px]">
+        </div>
+
+        <div>
+          <label class="block font-semibold text-[var(--text-muted)] uppercase mb-1">Request Body (for POST/PUT)</label>
+          <textarea name="body" rows="2" placeholder='{"ping": "pong"}' class="w-full px-3 py-2 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-lg text-[var(--text-main)] font-mono text-[11px]"></textarea>
+        </div>
+      </div>
+
+      <!-- Keyword & SSL options (available for HTTP, HTTPS, SMTP) -->
+      <div id="modal-keyword-tls-options" class="space-y-4 pt-3 border-t border-[var(--border-color)]">
+        <div>
+          <label id="modal-keyword-label" class="block font-semibold text-[var(--text-muted)] uppercase mb-1">Keyword Assertion (optional)</label>
+          <input type="text" name="keyword" id="modal-keyword-input" placeholder="Status OK" class="w-full px-3 py-2 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-lg text-[var(--text-main)]">
+        </div>
+
+        <div class="flex items-center gap-2">
+          <input type="checkbox" name="skip_tls_verify" id="modal_skip_tls" value="true" class="rounded">
+          <label for="modal_skip_tls" class="text-xs text-[var(--text-muted)]">Ignore self-signed SSL/TLS certificates (skip verify)</label>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-3 gap-3 pt-3 border-t border-[var(--border-color)]">
+        <div>
+          <label class="block font-semibold text-[var(--text-muted)] uppercase mb-1">Interval (Sec)</label>
+          <input type="number" name="interval_sec" value="60" min="5" class="w-full px-3 py-2 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-lg text-[var(--text-main)]">
+        </div>
+        <div>
+          <label class="block font-semibold text-[var(--text-muted)] uppercase mb-1">Timeout (Sec)</label>
+          <input type="number" name="timeout_sec" value="10" min="1" max="60" class="w-full px-3 py-2 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-lg text-[var(--text-main)]">
+        </div>
+        <div>
+          <label class="block font-semibold text-[var(--text-muted)] uppercase mb-1">Retries (Damping)</label>
+          <input type="number" name="retry_count" value="2" min="1" max="10" class="w-full px-3 py-2 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-lg text-[var(--text-main)]">
+        </div>
+      </div>
+
+      <div class="pt-4 flex justify-end gap-3">
+        <button type="button" onclick="document.getElementById('monitor-modal').classList.add('hidden')" class="px-4 py-2 bg-[var(--bg-subtle)] rounded-lg text-[var(--text-muted)]">Cancel</button>
+        <button type="submit" class="btn-primary px-5 py-2">Add to {{ .Page.Name }}</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal: New Incident for this page -->
+<div id="incident-modal" class="hidden fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+  <div class="modal-card max-w-xl w-full p-6 relative my-8">
+    <div class="flex items-center justify-between pb-4 border-b border-[var(--border-color)] mb-5">
+      <h3 class="text-base font-bold text-[var(--text-main)]">Report Incident for {{ .Page.Name }}</h3>
+      <button onclick="document.getElementById('incident-modal').classList.add('hidden')" class="text-[var(--text-muted)] hover:text-[var(--text-main)] text-xl font-bold">&times;</button>
+    </div>
+
+    <form method="POST" action="/admin/incidents" class="space-y-4 text-xs">
+      <input type="hidden" name="status_page_id" value="{{ .Page.ID }}">
+
+      <div>
+        <label class="block font-semibold text-[var(--text-muted)] uppercase mb-1">Incident Title</label>
+        <input type="text" name="title" required placeholder="Elevated Latency on API" class="w-full px-3 py-2 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-lg text-[var(--text-main)]">
+      </div>
+
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block font-semibold text-[var(--text-muted)] uppercase mb-1">Severity Impact</label>
+          <select name="severity" class="w-full px-3 py-2 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-lg text-[var(--text-main)]">
+            <option value="minor">Minor Degradation</option>
+            <option value="major">Major Outage</option>
+            <option value="critical">Critical Emergency</option>
+            <option value="maintenance">Scheduled Maintenance</option>
+          </select>
+        </div>
+        <div>
+          <label class="block font-semibold text-[var(--text-muted)] uppercase mb-1">Initial Status</label>
+          <select name="status" class="w-full px-3 py-2 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-lg text-[var(--text-main)]">
+            <option value="investigating" selected>Investigating</option>
+            <option value="identified">Identified</option>
+            <option value="monitoring">Monitoring</option>
+            <option value="resolved">Resolved</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div>
+          <label class="block font-semibold text-[var(--text-muted)] uppercase mb-1">Occurred At / Started At</label>
+          <input type="datetime-local" name="created_at" class="w-full px-3 py-2 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-lg text-[var(--text-main)] font-mono text-xs">
+          <span class="text-[10px] text-[var(--text-muted)] mt-0.5 block">Leave blank to default to current time.</span>
+        </div>
+        <div>
+          <label class="block font-semibold text-[var(--text-muted)] uppercase mb-1">Resolved At <span class="text-[var(--text-muted)] font-normal">(If Resolved)</span></label>
+          <input type="datetime-local" name="resolved_at" class="w-full px-3 py-2 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-lg text-[var(--text-main)] font-mono text-xs">
+          <span class="text-[10px] text-[var(--text-muted)] mt-0.5 block">Only applicable if initial status is Resolved.</span>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div>
+          <label class="block font-semibold text-[var(--text-muted)] uppercase mb-1">Scheduled Start <span class="text-[var(--text-muted)] font-normal">(Maintenance)</span></label>
+          <input type="datetime-local" name="scheduled_start" class="w-full px-3 py-2 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-lg text-[var(--text-main)] font-mono text-xs">
+        </div>
+        <div>
+          <label class="block font-semibold text-[var(--text-muted)] uppercase mb-1">Scheduled End <span class="text-[var(--text-muted)] font-normal">(Maintenance)</span></label>
+          <input type="datetime-local" name="scheduled_end" class="w-full px-3 py-2 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-lg text-[var(--text-main)] font-mono text-xs">
+        </div>
+      </div>
+
+      <div>
+        <label class="block font-semibold text-[var(--text-muted)] uppercase mb-1">Initial Update Message</label>
+        <textarea name="message" rows="3" required placeholder="We are investigating reports of downtime..." class="w-full px-3 py-2 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-lg text-[var(--text-main)]"></textarea>
+      </div>
+
+      <div class="pt-4 flex justify-end gap-3">
+        <button type="button" onclick="document.getElementById('incident-modal').classList.add('hidden')" class="px-4 py-2 bg-[var(--bg-subtle)] rounded-lg text-[var(--text-muted)]">Cancel</button>
+        <button type="submit" class="btn-primary px-5 py-2">Publish Incident</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal: Edit Incident Overall Details -->
+<div id="edit-incident-modal" class="hidden fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+  <div class="modal-card max-w-xl w-full p-6 relative my-8">
+    <div class="flex items-center justify-between pb-4 border-b border-[var(--border-color)] mb-5">
+      <h3 class="text-base font-bold text-[var(--text-main)]">Edit Incident Details</h3>
+      <button onclick="document.getElementById('edit-incident-modal').classList.add('hidden')" class="text-[var(--text-muted)] hover:text-[var(--text-main)] text-xl font-bold">&times;</button>
+    </div>
+
+    <form id="edit-incident-form" method="POST" action="" class="space-y-4 text-xs">
+      <div>
+        <label class="block font-semibold text-[var(--text-muted)] uppercase mb-1">Incident Title</label>
+        <input type="text" id="edit-inc-title" name="title" required class="w-full px-3 py-2 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-lg text-[var(--text-main)]">
+      </div>
+
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block font-semibold text-[var(--text-muted)] uppercase mb-1">Severity Impact</label>
+          <select id="edit-inc-severity" name="severity" class="w-full px-3 py-2 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-lg text-[var(--text-main)]">
+            <option value="minor">Minor Degradation</option>
+            <option value="major">Major Outage</option>
+            <option value="critical">Critical Emergency</option>
+            <option value="maintenance">Scheduled Maintenance</option>
+          </select>
+        </div>
+        <div>
+          <label class="block font-semibold text-[var(--text-muted)] uppercase mb-1">Current Status</label>
+          <select id="edit-inc-status" name="status" class="w-full px-3 py-2 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-lg text-[var(--text-main)]">
+            <option value="investigating">Investigating</option>
+            <option value="identified">Identified</option>
+            <option value="monitoring">Monitoring</option>
+            <option value="resolved">Resolved</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div>
+          <label class="block font-semibold text-[var(--text-muted)] uppercase mb-1">Incident Started / Occurred At</label>
+          <input type="datetime-local" id="edit-inc-created" name="created_at" class="w-full px-3 py-2 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-lg text-[var(--text-main)] font-mono text-xs">
+        </div>
+        <div>
+          <label class="block font-semibold text-[var(--text-muted)] uppercase mb-1">Resolved At</label>
+          <input type="datetime-local" id="edit-inc-resolved" name="resolved_at" class="w-full px-3 py-2 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-lg text-[var(--text-main)] font-mono text-xs">
+          <span class="text-[10px] text-[var(--text-muted)] mt-0.5 block">Effective when status is Resolved.</span>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div>
+          <label class="block font-semibold text-[var(--text-muted)] uppercase mb-1">Scheduled Start <span class="text-[var(--text-muted)] font-normal">(Maintenance)</span></label>
+          <input type="datetime-local" id="edit-inc-start" name="scheduled_start" class="w-full px-3 py-2 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-lg text-[var(--text-main)] font-mono text-xs">
+        </div>
+        <div>
+          <label class="block font-semibold text-[var(--text-muted)] uppercase mb-1">Scheduled End <span class="text-[var(--text-muted)] font-normal">(Maintenance)</span></label>
+          <input type="datetime-local" id="edit-inc-end" name="scheduled_end" class="w-full px-3 py-2 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-lg text-[var(--text-main)] font-mono text-xs">
+        </div>
+      </div>
+
+      <div class="pt-4 flex justify-end gap-3">
+        <button type="button" onclick="document.getElementById('edit-incident-modal').classList.add('hidden')" class="px-4 py-2 bg-[var(--bg-subtle)] rounded-lg text-[var(--text-muted)]">Cancel</button>
+        <button type="submit" class="btn-primary px-5 py-2">Save Changes</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Diagnostics Drawer -->
+<div id="diagnostics-drawer" class="hidden fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex justify-end">
+  <div class="border-l border-[var(--border-color)] w-full max-w-xl h-full p-6 shadow-2xl overflow-y-auto flex flex-col justify-between" style="background-color: var(--bg-card);">
+    <div>
+      <div class="flex items-center justify-between pb-4 border-b border-[var(--border-color)] mb-5">
+        <h3 class="text-base font-bold text-[var(--text-main)] flex items-center gap-2">
+          <span>&#128269;</span> Deep Failure Diagnostics
+        </h3>
+        <button onclick="document.getElementById('diagnostics-drawer').classList.add('hidden')" class="text-[var(--text-muted)] hover:text-[var(--text-main)] text-xl font-bold">&times;</button>
+      </div>
+      <div id="diagnostics-drawer-body">
+        <div class="text-xs text-[var(--text-muted)]">Loading diagnostic waterfall...</div>
+      </div>
+    </div>
+    <div class="pt-6 border-t border-[var(--border-color)] text-right">
+      <button onclick="document.getElementById('diagnostics-drawer').classList.add('hidden')" class="px-4 py-2 bg-[var(--bg-subtle)] rounded-lg text-xs text-[var(--text-main)]">Close Drawer</button>
+    </div>
+  </div>
+</div>
+
+<script>
+function switchTab(tabId) {
+  document.querySelectorAll('.tab-pane').forEach(el => el.classList.add('hidden'));
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.classList.remove('border-emerald-400', 'text-emerald-400');
+    btn.classList.add('border-transparent', 'text-[var(--text-muted)]');
+  });
+  document.getElementById(tabId).classList.remove('hidden');
+  const btn = document.getElementById('btn-' + tabId);
+  btn.classList.remove('border-transparent', 'text-[var(--text-muted)]');
+  btn.classList.add('border-emerald-400', 'text-emerald-400');
+}
+function toggleProtocolFields(proto) {
+  const httpOpts = document.getElementById('modal-http-options');
+  const kwOpts = document.getElementById('modal-keyword-tls-options');
+  const targetInput = document.querySelector('#create-monitor-modal input[name="target"]');
+  const kwLabel = document.getElementById('modal-keyword-label');
+  const kwInput = document.getElementById('modal-keyword-input');
+
+  if (proto === 'http' || proto === 'https') {
+    httpOpts.classList.remove('hidden');
+    kwOpts.classList.remove('hidden');
+    if (targetInput) targetInput.placeholder = 'https://api.example.com/health';
+    if (kwLabel) kwLabel.textContent = 'Keyword Assertion (optional)';
+    if (kwInput) kwInput.placeholder = 'Status OK';
+  } else if (proto === 'smtp') {
+    httpOpts.classList.add('hidden');
+    kwOpts.classList.remove('hidden');
+    if (targetInput) targetInput.placeholder = '127.0.0.1:25 or mail.example.com:25';
+    if (kwLabel) kwLabel.textContent = 'Greeting Banner Keyword Assertion (optional)';
+    if (kwInput) kwInput.placeholder = 'e.g. Stalwart, ESMTP or 220';
+  } else {
+    httpOpts.classList.add('hidden');
+    kwOpts.classList.add('hidden');
+    if (targetInput) targetInput.placeholder = '127.0.0.1:5432 or db.example.com:3306';
+  }
+}
+function toggleAuthFields(val) {
+  const bearer = document.getElementById('modal-auth-bearer');
+  const basic = document.getElementById('modal-auth-basic');
+  bearer.classList.add('hidden');
+  basic.classList.add('hidden');
+  if (val === 'bearer') bearer.classList.remove('hidden');
+  if (val === 'basic') basic.classList.remove('hidden');
+}
+
+function openEditIncidentModal(id, title, status, severity, createdAt, resolvedAt, schedStart, schedEnd) {
+  document.getElementById('edit-incident-form').action = '/admin/incidents/' + id + '/edit';
+  document.getElementById('edit-inc-title').value = title;
+  document.getElementById('edit-inc-status').value = status;
+  document.getElementById('edit-inc-severity').value = severity;
+  document.getElementById('edit-inc-created').value = createdAt;
+  document.getElementById('edit-inc-resolved').value = resolvedAt;
+  document.getElementById('edit-inc-start').value = schedStart;
+  document.getElementById('edit-inc-end').value = schedEnd;
+  document.getElementById('edit-incident-modal').classList.remove('hidden');
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+  const hash = window.location.hash.replace('#', '');
+  if (hash && document.getElementById(hash)) {
+    switchTab(hash);
+  }
+});
+</script>
+{{ end }}

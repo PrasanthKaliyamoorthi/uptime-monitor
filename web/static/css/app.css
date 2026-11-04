@@ -1,0 +1,230 @@
+/* Base resets and color definitions */
+:root {
+  --font-sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  
+  --color-up: #10b981;
+  --color-degraded: #f59e0b;
+  --color-down: #ef4444;
+  --color-nodata: #374151;
+  --color-pending: #6b7280;
+}
+
+/* Theme 1: OpenStatus Slate (Default) */
+[data-theme="openstatus-slate"], :root {
+  --bg-base: #0b0f17;
+  --bg-card: #111827;
+  --bg-subtle: #1f2937;
+  --text-main: #f9fafb;
+  --text-muted: #9ca3af;
+  --border-color: #374151;
+  --accent: #10b981;
+  --accent-hover: #059669;
+}
+
+/* Theme 2: Catppuccin Mocha */
+[data-theme="catppuccin-mocha"] {
+  --bg-base: #1e1e2e;
+  --bg-card: #181825;
+  --bg-subtle: #313244;
+  --text-main: #cdd6f4;
+  --text-muted: #a6adc8;
+  --border-color: #313244;
+  --accent: #89b4fa;
+  --accent-hover: #b4befe;
+}
+
+/* Theme 3: Catppuccin Latte (Light) */
+[data-theme="catppuccin-latte"] {
+  --bg-base: #eff1f5;
+  --bg-card: #ffffff;
+  --bg-subtle: #e6e9ef;
+  --text-main: #4c4f69;
+  --text-muted: #6c6f85;
+  --border-color: #ccd0da;
+  --accent: #1e66f5;
+  --accent-hover: #04a5e5;
+}
+
+/* Theme 4: Tokyo Night */
+[data-theme="tokyo-night"] {
+  --bg-base: #1a1b26;
+  --bg-card: #24283b;
+  --bg-subtle: #2f3549;
+  --text-main: #c0caf5;
+  --text-muted: #7aa2f7;
+  --border-color: #414868;
+  --accent: #7aa2f7;
+  --accent-hover: #bb9af7;
+}
+
+/* Theme 5: Nord */
+[data-theme="nord"] {
+  --bg-base: #2e3440;
+  --bg-card: #3b4252;
+  --bg-subtle: #434c5e;
+  --text-main: #eceff4;
+  --text-muted: #d8dee9;
+  --border-color: #4c566a;
+  --accent: #88c0d0;
+  --accent-hover: #81a1c1;
+}
+
+/* Theme 6: Dracula */
+[data-theme="dracula"] {
+  --bg-base: #282a36;
+  --bg-card: #44475a;
+  --bg-subtle: #6272a4;
+  --text-main: #f8f8f2;
+  --text-muted: #bfbfbf;
+  --border-color: #6272a4;
+  --accent: #bd93f9;
+  --accent-hover: #ff79c6;
+}
+
+html, body {
+  background-color: var(--bg-base);
+  color: var(--text-main);
+  font-family: var(--font-sans);
+  margin: 0;
+  padding: 0;
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+.modal-card {
+  background-color: var(--bg-card) !important;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
+}
+
+/* Day bar visual ticks */
+.day-bar-container {
+  display: flex;
+  gap: 3px;
+  align-items: center;
+  width: 100%;
+}
+
+.day-tick {
+  flex: 1;
+  height: 28px;
+  border-radius: 3px;
+  transition: transform 0.1s ease, filter 0.1s ease;
+  position: relative;
+  cursor: pointer;
+}
+
+.day-tick:hover {
+  transform: scaleY(1.15);
+  filter: brightness(1.2);
+  z-index: 10;
+}
+
+.tick-up { background-color: var(--color-up); }
+.tick-degraded { background-color: var(--color-degraded); }
+.tick-degraded-10 { background: linear-gradient(to top, var(--color-up) 90%, var(--color-degraded) 90%); }
+.tick-degraded-20 { background: linear-gradient(to top, var(--color-up) 80%, var(--color-degraded) 80%); }
+.tick-degraded-30 { background: linear-gradient(to top, var(--color-up) 70%, var(--color-degraded) 70%); }
+.tick-down { background-color: var(--color-down); }
+.tick-nodata { background-color: var(--color-nodata); }
+
+/* Custom Tooltips */
+.has-tooltip {
+  position: relative;
+}
+.has-tooltip:hover .tooltip-content {
+  visibility: visible;
+  opacity: 1;
+}
+.tooltip-content {
+  visibility: hidden;
+  opacity: 0;
+  position: absolute;
+  bottom: 125%;
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: #111827;
+  color: #f9fafb;
+  padding: 4px 8px;
+  font-size: 11px;
+  border-radius: 4px;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 50;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.5);
+  transition: opacity 0.15s ease;
+  border: 1px solid #374151;
+}
+
+/* Card and layout components */
+.card {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+}
+
+.btn-primary {
+  background-color: var(--accent);
+  color: #ffffff;
+  font-weight: 500;
+  border-radius: 6px;
+  padding: 0.5rem 1rem;
+  transition: opacity 0.15s;
+}
+.btn-primary:hover {
+  opacity: 0.9;
+}
+
+/* Pulsing Status Dot */
+.pulse-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+  position: relative;
+}
+.pulse-dot-up {
+  background-color: var(--color-up);
+  box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+  animation: pulse-green 2s infinite;
+}
+.pulse-dot-degraded {
+  background-color: var(--color-degraded);
+  box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.7);
+  animation: pulse-orange 2s infinite;
+}
+.pulse-dot-down {
+  background-color: var(--color-down);
+  box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+  animation: pulse-red 2s infinite;
+}
+
+@keyframes pulse-green {
+  0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+  70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
+  100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+}
+@keyframes pulse-orange {
+  0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.7); }
+  70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(245, 158, 11, 0); }
+  100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
+}
+@keyframes pulse-red {
+  0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+  70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(239, 68, 68, 0); }
+  100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+}
+
+/* HTMX transition indicators */
+.htmx-indicator {
+  opacity: 0;
+  transition: opacity 200ms ease-in;
+}
+.htmx-request .htmx-indicator {
+  opacity: 1;
+}
+.htmx-request.htmx-indicator {
+  opacity: 1;
+}

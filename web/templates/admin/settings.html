@@ -1,0 +1,63 @@
+{{ define "admin_content" }}
+<div class="space-y-6 max-w-4xl mx-auto">
+  <div>
+    <h2 class="text-xl font-bold text-[var(--text-main)]">System Settings & Security</h2>
+    <p class="text-xs text-[var(--text-muted)] mt-0.5">Global configuration, access control, and domain routing rules.</p>
+  </div>
+
+  {{ if .Saved }}
+  <div class="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-lg text-emerald-400 text-xs flex items-center justify-between">
+    <span>✓ System settings have been updated successfully.</span>
+    <a href="/admin/settings" class="underline text-emerald-400/80 hover:text-emerald-300">Dismiss</a>
+  </div>
+  {{ end }}
+
+  <!-- Admin Domain Access Control Card -->
+  <div class="card p-6 space-y-6">
+    <div class="flex items-start justify-between border-b border-[var(--border-color)] pb-4">
+      <div>
+        <h3 class="text-sm font-bold text-[var(--text-main)] flex items-center gap-2">
+          <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+          Admin Console Allowed Domain
+        </h3>
+        <p class="text-xs text-[var(--text-muted)] mt-1">
+          Lock down access to the administrative console (<code class="bg-[var(--bg-subtle)] px-1 py-0.5 rounded text-[var(--text-main)] font-mono">/admin</code> and <code class="bg-[var(--bg-subtle)] px-1 py-0.5 rounded text-[var(--text-main)] font-mono">/admin/login</code>) to a specific domain name.
+        </p>
+      </div>
+      <span class="text-xs px-2.5 py-1 rounded-full font-mono font-semibold {{ if .AdminAllowedDomain }}bg-purple-500/20 text-purple-400{{ else }}bg-gray-500/20 text-[var(--text-muted)]{{ end }}">
+        {{ if .AdminAllowedDomain }}Restricted{{ else }}Any Host Allowed{{ end }}
+      </span>
+    </div>
+
+    <form method="POST" action="/admin/settings" class="space-y-4 text-xs">
+      <div>
+        <label class="block font-semibold text-[var(--text-muted)] uppercase mb-1">Allowed Admin Domain</label>
+        <div class="relative">
+          <input type="text"
+                 name="admin_allowed_domain"
+                 value="{{ .AdminAllowedDomain }}"
+                 placeholder="console.status.sagasoft.xyz"
+                 class="w-full px-3 py-2 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-lg text-[var(--text-main)] font-mono text-xs">
+        </div>
+        <p class="text-[11px] text-[var(--text-muted)] mt-1.5 leading-relaxed">
+          When configured, requests to the admin area from any other host header will return <strong class="text-rose-400">404 Not Found</strong> to completely conceal the admin console. Public status pages remain accessible on their respective domains. Leave empty to allow admin access from any domain.
+        </p>
+      </div>
+
+      <div class="p-3 bg-[var(--bg-subtle)] rounded-lg border border-[var(--border-color)] flex items-center justify-between text-xs">
+        <span class="text-[var(--text-muted)]">Currently Detected Host:</span>
+        <code class="px-2 py-0.5 rounded bg-[var(--bg-card)] border border-[var(--border-color)] text-[var(--text-main)] font-mono">{{ .CurrentHost }}</code>
+      </div>
+
+      <div class="pt-2 flex items-center justify-between">
+        <div class="text-[11px] text-[var(--text-muted)]">
+          CLI Override: <code class="bg-[var(--bg-subtle)] px-1.5 py-0.5 rounded font-mono text-[var(--text-main)]">./uptime-monitor -admin-domain &lt;domain&gt;</code>
+        </div>
+        <button type="submit" class="btn-primary px-5 py-2 font-semibold">
+          Save Settings
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+{{ end }}

@@ -1,0 +1,183 @@
+{{ define "content" }}
+<div class="max-w-4xl mx-auto px-4 py-12 w-full flex-1">
+  <!-- Header with Brand & Theme Switcher -->
+  <header class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-10 pb-6 border-b border-[var(--border-color)]">
+    <div class="flex items-center gap-4">
+      {{ if .StatusPage.LogoURL }}
+      <img src="{{ safeURL .StatusPage.LogoURL }}" alt="{{ .StatusPage.Name }}" class="h-14 w-auto max-w-[120px] max-h-14 object-contain rounded-xl border border-[var(--border-color)] p-1.5 bg-[var(--bg-subtle)] shadow-sm">
+      {{ end }}
+      <div>
+        <h1 class="text-3xl font-extrabold tracking-tight text-[var(--text-main)]">{{ .StatusPage.Name }}</h1>
+        {{ if .StatusPage.Description }}
+        <p class="text-sm text-[var(--text-muted)] mt-1.5">{{ .StatusPage.Description }}</p>
+        {{ end }}
+      </div>
+    </div>
+
+    <!-- Actions (Admin Console & Theme Switcher) -->
+    <div class="flex items-center gap-3 self-start sm:self-auto">
+      {{ if .CanAccessAdmin }}
+      <a href="/admin" class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-[var(--bg-subtle)] hover:bg-[var(--border-color)] border border-[var(--border-color)] text-[var(--text-main)] transition-colors shadow-sm">
+        <svg class="w-3.5 h-3.5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+        Admin Console
+      </a>
+      {{ end }}
+
+      <div class="flex items-center gap-2">
+        <label for="theme-select" class="text-xs text-[var(--text-muted)]">Theme:</label>
+        <select id="theme-select" onchange="applyUserTheme(this.value)"
+                class="text-xs bg-[var(--bg-card)] border border-[var(--border-color)] text-[var(--text-main)] rounded px-2.5 py-1.5 focus:outline-none focus:border-emerald-500">
+          <option value="openstatus-slate" {{ if eq .StatusPage.Theme "openstatus-slate" }}selected{{ end }}>OpenStatus Slate</option>
+          <option value="catppuccin-mocha" {{ if eq .StatusPage.Theme "catppuccin-mocha" }}selected{{ end }}>Catppuccin Mocha</option>
+          <option value="catppuccin-latte" {{ if eq .StatusPage.Theme "catppuccin-latte" }}selected{{ end }}>Catppuccin Latte</option>
+          <option value="tokyo-night" {{ if eq .StatusPage.Theme "tokyo-night" }}selected{{ end }}>Tokyo Night</option>
+          <option value="nord" {{ if eq .StatusPage.Theme "nord" }}selected{{ end }}>Nord</option>
+          <option value="dracula" {{ if eq .StatusPage.Theme "dracula" }}selected{{ end }}>Dracula</option>
+        </select>
+      </div>
+    </div>
+  </header>
+
+  <!-- Live Status Container (Auto-refreshes every 15s without duplicating page elements) -->
+  <div id="status-live-area" hx-get="{{ .RefreshURL }}" hx-trigger="every 15s" hx-select="#status-live-area" hx-swap="outerHTML" class="space-y-10">
+    <!-- Overall Status Banner -->
+    <div class="card p-6 flex items-center justify-between shadow-sm border border-[var(--border-color)]">
+      <div class="flex items-center gap-4">
+        <span class="pulse-dot {{ if eq .OverallStatus "up" }}pulse-dot-up{{ else if eq .OverallStatus "degraded" }}pulse-dot-degraded{{ else }}pulse-dot-down{{ end }}"></span>
+        <div>
+          <h2 class="text-lg font-bold text-[var(--text-main)]">
+            {{ if eq .OverallStatus "up" }}
+            All Systems Operational
+            {{ else if eq .OverallStatus "degraded" }}
+            Partially Degraded Performance
+            {{ else }}
+            Active System Outage
+            {{ end }}
+          </h2>
+          <p class="text-xs text-[var(--text-muted)] mt-0.5">
+            Continuously monitored from multiple geographic probe nodes
+          </p>
+        </div>
+      </div>
+      <div class="hidden sm:block text-right text-xs text-[var(--text-muted)]">
+        <span>Auto-refreshing live</span>
+      </div>
+    </div>
+
+    <!-- Active Incidents & Scheduled Maintenance -->
+    {{ template "incident_banner" . }}
+
+    <!-- Monitored Services List -->
+    <div class="space-y-6">
+      {{ if .Monitors }}
+        {{ range .Monitors }}
+        <div class="card p-5 space-y-4 shadow-sm hover:border-[var(--text-muted)]/30 transition-colors">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-3">
+              <span class="w-2.5 h-2.5 rounded-full {{ if eq .Monitor.CurrentStatus "up" }}bg-emerald-500{{ else if eq .Monitor.CurrentStatus "degraded" }}bg-amber-500{{ else if eq .Monitor.CurrentStatus "down" }}bg-red-500{{ else }}bg-gray-500{{ end }}"></span>
+              <span class="font-semibold text-[var(--text-main)] text-base">{{ .Monitor.Name }}</span>
+              <span class="text-[10px] uppercase font-mono px-2 py-0.5 rounded bg-[var(--bg-subtle)] text-[var(--text-muted)] border border-[var(--border-color)]">
+                {{ .Monitor.Protocol }}
+              </span>
+            </div>
+
+            <div class="flex items-center gap-4 text-xs">
+              {{ if gt .Monitor.LastLatencyMs 0 }}
+              <span class="text-[var(--text-muted)] hidden sm:inline">{{ .Monitor.LastLatencyMs }} ms</span>
+              {{ end }}
+              <span class="font-medium px-2.5 py-1 rounded-full text-xs {{ if eq .Monitor.CurrentStatus "up" }}bg-emerald-500/10 text-emerald-400 border border-emerald-500/20{{ else if eq .Monitor.CurrentStatus "degraded" }}bg-amber-500/10 text-amber-400 border border-amber-500/20{{ else if eq .Monitor.CurrentStatus "down" }}bg-red-500/10 text-red-400 border border-red-500/20{{ else }}bg-gray-500/10 text-gray-400 border border-gray-500/20{{ end }}">
+                {{ if eq .Monitor.CurrentStatus "up" }}Operational{{ else if eq .Monitor.CurrentStatus "degraded" }}Degraded{{ else if eq .Monitor.CurrentStatus "down" }}Outage{{ else }}Pending{{ end }}
+              </span>
+            </div>
+          </div>
+
+          <!-- 60-Day Status Bar -->
+          {{ template "day_bar" . }}
+        </div>
+        {{ end }}
+      {{ else }}
+        <div class="card p-12 text-center text-[var(--text-muted)] text-sm">
+          No active monitors attached to this status page yet.
+        </div>
+      {{ end }}
+    </div>
+
+    <!-- Past Incidents Timeline (Configured over past {{ .HistoryDays }} days) -->
+    <div class="pt-8 border-t border-[var(--border-color)] space-y-6">
+      <div class="flex items-center justify-between pb-1">
+        <h3 class="text-xl font-bold text-[var(--text-main)]">Past Incidents</h3>
+        <span class="text-xs text-[var(--text-muted)] font-mono">Past {{ .HistoryDays }} Days</span>
+      </div>
+
+      {{ if .PastIncidents }}
+        <div class="space-y-6">
+          {{ range .PastIncidents }}
+          <div class="card p-6 space-y-5 shadow-sm border border-[var(--border-color)]">
+            <!-- Incident Header -->
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-[var(--border-color)]">
+              <div class="flex items-center gap-3">
+                <span class="text-xs uppercase font-bold tracking-wider px-2 py-0.5 rounded {{ if eq .Severity "critical" }}bg-red-500/20 text-red-400{{ else if eq .Severity "major" }}bg-orange-500/20 text-orange-400{{ else if eq .Severity "maintenance" }}bg-blue-500/20 text-blue-400{{ else }}bg-emerald-500/20 text-emerald-400{{ end }}">
+                  {{ if .IsMaintenance }}Maintenance{{ else }}{{ .Severity }} Incident{{ end }}
+                </span>
+                <h4 class="text-base font-bold text-[var(--text-main)]">{{ .Title }}</h4>
+              </div>
+              <div class="flex items-center gap-2 text-xs font-mono text-[var(--text-muted)]">
+                <span class="px-2 py-0.5 rounded bg-[var(--bg-subtle)] border border-[var(--border-color)] uppercase font-semibold {{ if eq .Status "resolved" }}text-emerald-400{{ else }}text-amber-400{{ end }}">{{ .Status }}</span>
+                <span>&bull;</span>
+                <span>{{ .CreatedAt.Format "Jan 02, 2006" }}</span>
+              </div>
+            </div>
+
+            <!-- Vertical Timeline of Updates -->
+            <div class="relative pl-6 space-y-5 before:absolute before:left-2.5 before:top-2 before:bottom-2 before:w-0.5 before:bg-[var(--border-color)]">
+              {{ range .Updates }}
+              <div class="relative">
+                <!-- Timeline bullet node -->
+                <div class="absolute -left-6 top-1 w-3 h-3 rounded-full border-2 border-[var(--bg-card)] {{ if eq .Status "resolved" }}bg-emerald-400{{ else if eq .Status "monitoring" }}bg-blue-400{{ else if eq .Status "identified" }}bg-amber-400{{ else }}bg-red-400{{ end }}"></div>
+                <div>
+                  <div class="flex items-center gap-2 text-xs">
+                    <span class="font-bold uppercase tracking-wider text-[var(--text-main)]">{{ .Status }}</span>
+                    <span class="text-[var(--text-muted)] font-mono text-[11px]">&bull; {{ .CreatedAt.Format "Jan 02, 15:04 UTC" }}</span>
+                  </div>
+                  <div class="text-xs text-[var(--text-muted)] mt-1 leading-relaxed">
+                    {{ .Message }}
+                  </div>
+                </div>
+              </div>
+              {{ end }}
+            </div>
+          </div>
+          {{ end }}
+        </div>
+      {{ else }}
+        <div class="card p-8 text-center text-xs text-[var(--text-muted)] border border-dashed border-[var(--border-color)] flex flex-col items-center justify-center gap-2">
+          <div class="w-8 h-8 rounded-full bg-emerald-500/10 text-emerald-400 flex items-center justify-center text-sm font-bold">
+            &#10003;
+          </div>
+          <span>No incidents reported in the past {{ .HistoryDays }} days.</span>
+        </div>
+      {{ end }}
+    </div>
+  </div>
+</div>
+
+<script>
+  function applyUserTheme(val) {
+    document.documentElement.setAttribute('data-theme', val);
+    try {
+      localStorage.setItem('uptime_theme', val);
+    } catch(e) {}
+  }
+
+  // Synchronize dropdown with cached theme if set
+  (function() {
+    try {
+      var saved = localStorage.getItem('uptime_theme');
+      var sel = document.getElementById('theme-select');
+      if (saved && sel) {
+        sel.value = saved;
+      }
+    } catch(e) {}
+  })();
+</script>
+{{ end }}
