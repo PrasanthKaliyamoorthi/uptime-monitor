@@ -114,7 +114,12 @@ func (h *StatusPageHandler) ServeStatusPage(w http.ResponseWriter, r *http.Reque
 	pastIncidents, _ := h.incidentRepo.GetPastForStatusPage(page.ID, since)
 
 	refreshURL := "/"
-	if page.Slug != "" && page.Slug != "default" {
+	reqHost := strings.ToLower(ExtractRequestHost(r))
+	if (page.Domain != "" && strings.EqualFold(reqHost, page.Domain)) || r.URL.Path == "/" {
+		refreshURL = "/"
+	} else if strings.HasPrefix(r.URL.Path, "/status/") {
+		refreshURL = r.URL.Path
+	} else if page.Slug != "" && page.Slug != "default" {
 		refreshURL = "/status?page=" + page.Slug
 	}
 
@@ -144,6 +149,11 @@ func (h *StatusPageHandler) ServeStatusPage(w http.ResponseWriter, r *http.Reque
 		"HistoryDays":     historyDays,
 		"RefreshURL":      refreshURL,
 		"CanAccessAdmin":  canAccessAdmin,
+	}
+
+	if r.Header.Get("HX-Request") == "true" {
+		_ = h.renderer.RenderPartial(w, "status_page", "status_live_area", data)
+		return
 	}
 
 	_ = h.renderer.Render(w, "status_page", data)

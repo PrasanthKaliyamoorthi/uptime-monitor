@@ -68,7 +68,7 @@
             <td class="py-2.5 px-3 text-[var(--text-main)] font-bold">{{ .IP }}</td>
             <td class="py-2.5 px-3 text-rose-400 font-bold">{{ .FailedAttempts }}</td>
             <td class="py-2.5 px-3 text-[var(--text-muted)]">{{ .Reason }}</td>
-            <td class="py-2.5 px-3 text-[var(--text-muted)]">{{ if .BlacklistedAt }}{{ .BlacklistedAt.Format "2006-01-02 15:04:05" }}{{ else }}-{{ end }}</td>
+            <td class="py-2.5 px-3 text-[var(--text-muted)]">{{ if .BlacklistedAt }}<span class="local-timestamp" data-utc="{{ .BlacklistedAt.Format "2006-01-02T15:04:05.000Z07:00" }}">{{ .BlacklistedAt.Format "2006-01-02 15:04:05" }}</span>{{ else }}-{{ end }}</td>
             <td class="py-2.5 px-3 text-right">
               <form method="POST" action="/admin/blacklist/unblock" class="inline">
                 <input type="hidden" name="ip" value="{{ .IP }}">
@@ -95,7 +95,7 @@
       <table class="w-full text-left text-xs font-mono">
         <thead class="bg-[var(--bg-subtle)] border-b border-[var(--border-color)] text-[var(--text-muted)] uppercase">
           <tr>
-            <th class="py-3 px-4">Time</th>
+            <th class="py-3 px-4">Date & Time</th>
             <th class="py-3 px-4">Level</th>
             <th class="py-3 px-4">Source</th>
             <th class="py-3 px-4">Monitor ID</th>
@@ -106,7 +106,9 @@
         <tbody class="divide-y divide-[var(--border-color)]">
           {{ range .Logs }}
           <tr class="hover:bg-[var(--bg-subtle)]/40">
-            <td class="py-2.5 px-4 whitespace-nowrap text-[var(--text-muted)]">{{ .CreatedAt.Format "15:04:05.000" }}</td>
+            <td class="py-2.5 px-4 whitespace-nowrap text-[var(--text-muted)]">
+              <span class="local-timestamp" data-utc="{{ .CreatedAt.Format "2006-01-02T15:04:05.000Z07:00" }}">{{ .CreatedAt.Format "2006-01-02 15:04:05.000" }}</span>
+            </td>
             <td class="py-2.5 px-4 whitespace-nowrap">
               <span class="px-2 py-0.5 rounded text-[10px] font-bold {{ if eq .Level "ERROR" }}bg-red-500/20 text-red-400{{ else if eq .Level "WARN" }}bg-amber-500/20 text-amber-400{{ else }}bg-blue-500/20 text-blue-400{{ end }}">
                 {{ .Level }}
@@ -131,4 +133,36 @@
     </div>
   </div>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  function formatLocalTimestamps() {
+    document.querySelectorAll('.local-timestamp').forEach(function(el) {
+      var raw = el.getAttribute('data-utc');
+      if (!raw) return;
+      var d = new Date(raw);
+      if (isNaN(d.getTime())) return;
+
+      var pad = function(n) { return (n < 10 ? '0' : '') + n; };
+      var pad3 = function(n) { return (n < 10 ? '00' : (n < 100 ? '0' : '')) + n; };
+
+      var year = d.getFullYear();
+      var month = pad(d.getMonth() + 1);
+      var day = pad(d.getDate());
+      var hours = pad(d.getHours());
+      var minutes = pad(d.getMinutes());
+      var seconds = pad(d.getSeconds());
+      var ms = pad3(d.getMilliseconds());
+
+      el.textContent = year + '-' + month + '-' + day + ' ' + hours + ':' + minutes + ':' + seconds + '.' + ms;
+      var tz = '';
+      try {
+        tz = ' (' + Intl.DateTimeFormat().resolvedOptions().timeZone + ')';
+      } catch(e) {}
+      el.title = 'Local: ' + d.toLocaleString() + tz + '\nOriginal: ' + raw;
+    });
+  }
+  formatLocalTimestamps();
+});
+</script>
 {{ end }}

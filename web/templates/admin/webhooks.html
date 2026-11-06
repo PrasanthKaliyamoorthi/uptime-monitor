@@ -279,7 +279,7 @@
 <script>
 const presets = {
   generic: '{\n  "event": "{{.Event}}",\n  "monitor_name": "{{.MonitorName}}",\n  "target": "{{.Target}}",\n  "status": "{{.Status}}",\n  "latency_ms": {{.LatencyMs}},\n  "error": "{{.ErrorMessage}}",\n  "timestamp": "{{.Timestamp}}"\n}',
-  zulip: 'type=direct&to=["prasanth@sagasoft.io"]&content=🚨 {{.MonitorName}} is now {{.Status}} ({{.LatencyMs}}ms)\\nTarget: {{.Target}}\\nError: {{.ErrorMessage}}',
+  zulip: 'type=direct&to=["jane@example.io"]&content=🚨 {{.MonitorName}} is now {{.Status}} ({{.LatencyMs}}ms)\\nTarget: {{.Target}}\\nError: {{.ErrorMessage}}',
   discord: '{\n  "content": "🚨 **{{.MonitorName}}** is now **{{.Status}}** ({{.LatencyMs}}ms)\\nTarget: `{{.Target}}`\\nError: {{.ErrorMessage}}"\n}',
   slack: '{\n  "text": "🚨 *{{.MonitorName}}* is now *{{.Status}}* | Latency: {{.LatencyMs}}ms\\nTarget: {{.Target}}\\nDetails: {{.ErrorMessage}}"\n}',
   telegram: '{\n  "chat_id": "REPLACE_WITH_CHAT_ID",\n  "text": "🚨 {{.MonitorName}} is {{.Status}}\\nTarget: {{.Target}}\\nError: {{.ErrorMessage}}"\n}'

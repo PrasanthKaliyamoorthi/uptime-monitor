@@ -145,6 +145,20 @@ func TestRouterFirstRunAndDomainRouting(t *testing.T) {
 	if !strings.Contains(termBody, `data-theme="catppuccin-mocha"`) {
 		t.Errorf("expected theme 'catppuccin-mocha' in html attribute")
 	}
+	if !strings.Contains(termBody, `hx-get="/"`) {
+		t.Errorf("expected hx-get to refresh against '/' for custom domain, got %s", termBody)
+	}
+
+	// 5b. Request with REST path /status/terminal
+	reqPath := httptest.NewRequest("GET", "/status/terminal", nil)
+	recPath := httptest.NewRecorder()
+	rt.ServeHTTP(recPath, reqPath)
+	if recPath.Code != http.StatusOK {
+		t.Errorf("expected 200 OK for /status/terminal, got %d", recPath.Code)
+	}
+	if !strings.Contains(recPath.Body.String(), "Terminal Services Status") {
+		t.Errorf("expected /status/terminal to resolve Terminal Services Status page")
+	}
 
 	// 6. Test SVG Badge endpoint
 	_ = monitorRepo.Create(&model.Monitor{

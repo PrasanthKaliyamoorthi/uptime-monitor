@@ -789,6 +789,9 @@ func TestStatusPageLogoUploadAndDisplay(t *testing.T) {
 	if !strings.Contains(html, `<img src="https://sagasoft.xyz/assets/logo.png"`) {
 		t.Errorf("expected public header to render logo img tag, got html: %s", html)
 	}
+	if !strings.Contains(html, `<link rel="icon" href="https://sagasoft.xyz/assets/logo.png"`) {
+		t.Errorf("expected favicon link to use status page logo, got html: %s", html)
+	}
 
 	// 4. Update status page with uploaded image file via multipart form data
 	var b bytes.Buffer
@@ -845,5 +848,110 @@ func TestStatusPageLogoUploadAndDisplay(t *testing.T) {
 	rt.ServeHTTP(recPublic3, reqPublic)
 	if strings.Contains(recPublic3.Body.String(), `<img src=""`) || strings.Contains(recPublic3.Body.String(), `alt="SagaSoft Status" class="h-14`) {
 		t.Errorf("expected public header without logo img tag after removal")
+	}
+}
+
+func TestStatusPageHTMXPartialPolling(t *testing.T) {
+	database, err := db.InitDB(":memory:")
+	if err != nil {
+		t.Fatalf("failed to init db: %v", err)
+	}
+	defer database.Close()
+
+	adminRepo := db.NewAdminRepo(database)
+	monitorRepo := db.NewMonitorRepo(database)
+	checkRepo := db.NewCheckRepo(database)
+	statusPageRepo := db.NewStatusPageRepo(database)
+	incidentRepo := db.NewIncidentRepo(database)
+	webhookRepo := db.NewWebhookRepo(database)
+	logRepo := db.NewLogRepo(database)
+	blacklistRepo := db.NewBlacklistRepo(database)
+
+	sysLogger := logger.New(logRepo)
+	coordinator := checker.NewCoordinator(monitorRepo, checkRepo, nil, sysLogger)
+	scheduler := checker.NewScheduler(coordinator, monitorRepo, sysLogger, 5)
+
+	rt, err := NewRouter(
+		adminRepo,
+		blacklistRepo,
+		monitorRepo,
+		checkRepo,
+		statusPageRepo,
+		incidentRepo,
+		webhookRepo,
+		logRepo,
+		scheduler,
+		coordinator,
+		sysLogger,
+	)
+	if err != nil {
+		t.Fatalf("failed to build router: %v", err)
+	}
+
+	// Create admin and default status page
+	_, _ = adminRepo.CreateAdmin("admin", "Password123!")
+	_ = statusPageRepo.Create(&model.StatusPage{
+		Name:      "Production Status",
+		Slug:      "default",
+		IsDefault: true,
+	})
+
+	// 1. Regular non-HTMX browser request (Full HTML page with layout)
+	reqFull := httptest.NewRequest("GET", "/", nil)
+	recFull := httptest.NewRecorder()
+	rt.ServeHTTP(recFull, reqFull)
+
+	if recFull.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK for full page, got %d", recFull.Code)
+	}
+	fullBody := recFull.Body.String()
+	if !strings.Contains(fullBody, "<!DOCTYPE html>") {
+		t.Errorf("expected full page to contain <!DOCTYPE html>")
+	}
+	if !strings.Contains(fullBody, "<html") {
+		t.Errorf("expected full page to contain <html")
+	}
+	if !strings.Contains(fullBody, "<header") {
+		t.Errorf("expected full page to contain <header")
+	}
+	if !strings.Contains(fullBody, `id="status-live-area"`) {
+		t.Errorf("expected full page to contain status-live-area")
+	}
+
+	// 2. HTMX Polling request (HX-Request: true)
+	reqHTMX := httptest.NewRequest("GET", "/", nil)
+	reqHTMX.Header.Set("HX-Request", "true")
+	reqHTMX.Header.Set("HX-Target", "status-live-area")
+	reqHTMX.Header.Set("HX-Trigger", "status-live-area")
+	recHTMX := httptest.NewRecorder()
+	rt.ServeHTTP(recHTMX, reqHTMX)
+
+	if recHTMX.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK for HTMX partial, got %d", recHTMX.Code)
+	}
+	htmxBody := recHTMX.Body.String()
+
+	// Must NOT contain full layout boilerplate
+	if strings.Contains(htmxBody, "<!DOCTYPE html>") {
+		t.Errorf("HTMX partial should NOT contain <!DOCTYPE html>")
+	}
+	if strings.Contains(htmxBody, "<html") {
+		t.Errorf("HTMX partial should NOT contain <html")
+	}
+	if strings.Contains(htmxBody, "<header") {
+		t.Errorf("HTMX partial should NOT contain outer <header")
+	}
+
+	// MUST contain status-live-area
+	if !strings.Contains(htmxBody, `id="status-live-area"`) {
+		t.Errorf("HTMX partial MUST contain id=\"status-live-area\"")
+	}
+	if !strings.Contains(htmxBody, "All Systems Operational") {
+		t.Errorf("HTMX partial should contain status text")
+	}
+
+	// HTMX partial should be significantly smaller than full page
+	if len(htmxBody) >= len(fullBody) {
+		t.Errorf("HTMX partial size (%d) should be much smaller than full page (%d)", len(htmxBody), len(fullBody))
 	}
 }

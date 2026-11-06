@@ -30,6 +30,7 @@ type Router struct {
 	adminWebhooksHandler *AdminWebhooksHandler
 	adminBackupHandler   *AdminBackupHandler
 	adminSettingsHandler *AdminSettingsHandler
+	faviconHandler       *FaviconHandler
 
 	staticHandler http.Handler
 }
@@ -92,6 +93,7 @@ func NewRouter(
 		adminWebhooksHandler: nil, // set below
 		adminBackupHandler:   NewAdminBackupHandler(mRepo, spRepo, wRepo, tr, log),
 		adminSettingsHandler: NewAdminSettingsHandler(settingsRepo, tr, log),
+		faviconHandler:       NewFaviconHandler(spRepo),
 		staticHandler:        staticServer,
 	}, nil
 }
@@ -107,6 +109,12 @@ func (rt *Router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// 1. Static file delivery
 	if strings.HasPrefix(path, "/static/") {
 		rt.staticHandler.ServeHTTP(w, r)
+		return
+	}
+
+	// 1b. Favicon delivery (with rounded corners)
+	if path == "/favicon.ico" || path == "/favicon.png" || path == "/api/favicon" {
+		rt.faviconHandler.ServeHTTP(w, r)
 		return
 	}
 
@@ -209,11 +217,18 @@ func (rt *Router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 7. Status Page Domain & Query Resolution
-	host := ExtractHost(r.Host)
+	host := ExtractRequestHost(r)
 	page, _ := rt.statusPageRepo.FindByDomain(host)
 	if page == nil {
 		if qPage := r.URL.Query().Get("page"); qPage != "" {
 			page, _ = rt.statusPageRepo.FindByIDOrSlug(qPage)
+		}
+	}
+	if page == nil && strings.HasPrefix(path, "/status/") {
+		subSlug := strings.TrimPrefix(path, "/status/")
+		subSlug = strings.Trim(subSlug, "/")
+		if subSlug != "" {
+			page, _ = rt.statusPageRepo.FindByIDOrSlug(subSlug)
 		}
 	}
 	if page == nil {
@@ -221,11 +236,11 @@ func (rt *Router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if page != nil {
-		if path == "/feed.xml" {
+		if path == "/feed.xml" || strings.HasSuffix(path, "/feed.xml") {
 			rt.statusPageHandler.ServeRSSFeed(w, r, page)
 			return
 		}
-		if path == "/" || path == "/status" {
+		if path == "/" || path == "/status" || strings.HasPrefix(path, "/status/") {
 			rt.statusPageHandler.ServeStatusPage(w, r, page)
 			return
 		}

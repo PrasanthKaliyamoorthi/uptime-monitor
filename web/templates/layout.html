@@ -15,6 +15,68 @@
   {{ if .StatusPage }}
   <link rel="alternate" type="application/rss+xml" title="{{ .StatusPage.Name }} Incident Feed" href="/feed.xml">
   {{ end }}
+  {{ if and .StatusPage .StatusPage.LogoURL }}
+  <link rel="icon" href="{{ safeURL .StatusPage.LogoURL }}">
+  <link rel="apple-touch-icon" href="{{ safeURL .StatusPage.LogoURL }}">
+  <script>
+    (function() {
+      var logoUrl = {{ toJSON .StatusPage.LogoURL }};
+      if (!logoUrl) return;
+
+      function applyRoundedFavicon(src) {
+        var img = new Image();
+        if (!src.startsWith('data:')) {
+          img.crossOrigin = 'anonymous';
+        }
+        img.onload = function() {
+          try {
+            var size = 128;
+            var canvas = document.createElement('canvas');
+            canvas.width = size;
+            canvas.height = size;
+            var ctx = canvas.getContext('2d');
+            var r = size * 0.08; // 8% rounded corners (5-10%)
+
+            ctx.beginPath();
+            if (typeof ctx.roundRect === 'function') {
+              ctx.roundRect(0, 0, size, size, r);
+            } else {
+              ctx.moveTo(r, 0);
+              ctx.lineTo(size - r, 0);
+              ctx.arcTo(size, 0, size, r, r);
+              ctx.lineTo(size, size - r);
+              ctx.arcTo(size, size, size - r, size, r);
+              ctx.lineTo(r, size);
+              ctx.arcTo(0, size, 0, size - r, r);
+              ctx.lineTo(0, r);
+              ctx.arcTo(0, 0, r, 0, r);
+              ctx.closePath();
+            }
+            ctx.clip();
+            ctx.drawImage(img, 0, 0, size, size);
+
+            var roundedUrl = canvas.toDataURL('image/png');
+            var f = document.querySelector("link[rel*='icon']");
+            if (f) f.href = roundedUrl;
+            var a = document.querySelector("link[rel='apple-touch-icon']");
+            if (a) a.href = roundedUrl;
+          } catch(e) {}
+        };
+        img.onerror = function() {
+          if (!src.startsWith('data:') && !src.startsWith('/api/favicon')) {
+            applyRoundedFavicon('/api/favicon?url=' + encodeURIComponent(src));
+          }
+        };
+        img.src = src;
+      }
+
+      applyRoundedFavicon(logoUrl);
+    })();
+  </script>
+  {{ else }}
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect width=%22100%22 height=%22100%22 rx=%228%22 fill=%22%230f172a%22/><circle cx=%2250%22 cy=%2250%22 r=%2230%22 fill=%22%2310b981%22/></svg>">
+  <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect width=%22100%22 height=%22100%22 rx=%228%22 fill=%22%230f172a%22/><circle cx=%2250%22 cy=%2250%22 r=%2230%22 fill=%22%2310b981%22/></svg>">
+  {{ end }}
   <!-- Embedded Tailwind CSS JIT -->
   <script src="/static/js/tailwind.min.js"></script>
   <script>

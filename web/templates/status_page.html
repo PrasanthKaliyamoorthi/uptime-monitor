@@ -39,6 +39,31 @@
   </header>
 
   <!-- Live Status Container (Auto-refreshes every 15s without duplicating page elements) -->
+  {{ template "status_live_area" . }}
+</div>
+
+<script>
+  function applyUserTheme(val) {
+    document.documentElement.setAttribute('data-theme', val);
+    try {
+      localStorage.setItem('uptime_theme', val);
+    } catch(e) {}
+  }
+
+  // Synchronize dropdown with cached theme if set
+  (function() {
+    try {
+      var saved = localStorage.getItem('uptime_theme');
+      var sel = document.getElementById('theme-select');
+      if (saved && sel) {
+        sel.value = saved;
+      }
+    } catch(e) {}
+  })();
+</script>
+{{ end }}
+
+{{ define "status_live_area" }}
   <div id="status-live-area" hx-get="{{ .RefreshURL }}" hx-trigger="every 15s" hx-select="#status-live-area" hx-swap="outerHTML" class="space-y-10">
     <!-- Overall Status Banner -->
     <div class="card p-6 flex items-center justify-between shadow-sm border border-[var(--border-color)]">
@@ -159,25 +184,4 @@
       {{ end }}
     </div>
   </div>
-</div>
-
-<script>
-  function applyUserTheme(val) {
-    document.documentElement.setAttribute('data-theme', val);
-    try {
-      localStorage.setItem('uptime_theme', val);
-    } catch(e) {}
-  }
-
-  // Synchronize dropdown with cached theme if set
-  (function() {
-    try {
-      var saved = localStorage.getItem('uptime_theme');
-      var sel = document.getElementById('theme-select');
-      if (saved && sel) {
-        sel.value = saved;
-      }
-    } catch(e) {}
-  })();
-</script>
 {{ end }}

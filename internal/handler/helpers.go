@@ -335,3 +335,18 @@ func (tr *TemplateRenderer) Render(w http.ResponseWriter, name string, data any)
 	}
 	return nil
 }
+
+// RenderPartial executes a specific defined template block directly without wrapping in layout.html (ideal for HTMX partial swaps)
+func (tr *TemplateRenderer) RenderPartial(w http.ResponseWriter, name string, block string, data any) error {
+	tmpl, ok := tr.templates[name]
+	if !ok {
+		http.Error(w, "template not found: "+name, http.StatusInternalServerError)
+		return nil
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if err := tmpl.ExecuteTemplate(w, block, data); err != nil {
+		fmt.Printf("[ERROR] template partial execution failed for %s (%s): %v\n", name, block, err)
+		return err
+	}
+	return nil
+}
