@@ -14,10 +14,10 @@ import (
 )
 
 type StatusPageRepo struct {
-	db *sql.DB
+	db *DB
 }
 
-func NewStatusPageRepo(db *sql.DB) *StatusPageRepo {
+func NewStatusPageRepo(db *DB) *StatusPageRepo {
 	return &StatusPageRepo{db: db}
 }
 
@@ -85,7 +85,7 @@ func (r *StatusPageRepo) Create(p *model.StatusPage) error {
 
 	// If this is set as default, clear other defaults
 	if p.IsDefault {
-		r.db.Exec("UPDATE status_pages SET is_default = 0")
+		r.db.Exec("UPDATE status_pages SET is_default = FALSE")
 	}
 
 	_, err := r.db.Exec(`
@@ -163,7 +163,7 @@ func (r *StatusPageRepo) FindByIDOrSlug(val string) (*model.StatusPage, error) {
 }
 
 func (r *StatusPageRepo) GetDefault() (*model.StatusPage, error) {
-	row := r.db.QueryRow("SELECT " + pageColumns + " FROM status_pages WHERE is_default = 1 LIMIT 1")
+	row := r.db.QueryRow("SELECT " + pageColumns + " FROM status_pages WHERE is_default = TRUE LIMIT 1")
 	p, err := r.scanPage(row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -214,7 +214,7 @@ func (r *StatusPageRepo) Update(p *model.StatusPage) error {
 	}
 
 	if p.IsDefault {
-		r.db.Exec("UPDATE status_pages SET is_default = 0 WHERE id != ?", p.ID)
+		r.db.Exec("UPDATE status_pages SET is_default = FALSE WHERE id != ?", p.ID)
 	}
 
 	_, err := r.db.Exec(`
@@ -264,9 +264,9 @@ func (r *StatusPageRepo) Delete(id string) error {
 	}
 	// If no default exists, promote the first remaining page to default
 	var count int
-	_ = r.db.QueryRow("SELECT COUNT(*) FROM status_pages WHERE is_default = 1").Scan(&count)
+	_ = r.db.QueryRow("SELECT COUNT(*) FROM status_pages WHERE is_default = TRUE").Scan(&count)
 	if count == 0 {
-		_, _ = r.db.Exec("UPDATE status_pages SET is_default = 1 WHERE id = (SELECT id FROM status_pages ORDER BY created_at ASC LIMIT 1)")
+		_, _ = r.db.Exec("UPDATE status_pages SET is_default = TRUE WHERE id = (SELECT id FROM status_pages ORDER BY created_at ASC LIMIT 1)")
 	}
 	return nil
 }

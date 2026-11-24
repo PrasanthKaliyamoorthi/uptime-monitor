@@ -126,7 +126,8 @@
         <label class="block font-semibold text-[var(--text-muted)] uppercase mb-1">Preset Payload Template</label>
         <select id="preset-select" onchange="applyPreset(this.value)" class="w-full px-3 py-2 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-lg text-[var(--text-main)]">
           <option value="generic" selected>Generic JSON (n8n, Zapier, Custom API)</option>
-          <option value="zulip">Zulip Bot (Form-Encoded)</option>
+          <option value="markdown">Markdown / Plain Text (Alert + Recovery)</option>
+          <option value="zulip">Zulip Bot (Stream / Direct)</option>
           <option value="discord">Discord Incoming Webhook</option>
           <option value="slack">Slack Incoming Webhook</option>
           <option value="telegram">Telegram Bot</option>
@@ -141,7 +142,7 @@
       <div>
         <div class="flex items-center justify-between mb-1">
           <label class="font-semibold text-[var(--text-muted)] uppercase">Payload Template</label>
-          <span class="text-[10px] text-[var(--text-muted)]">Template variables: &#123;&#123;.MonitorName&#125;&#125;, &#123;&#123;.Status&#125;&#125;, etc.</span>
+          <span class="text-[10px] text-[var(--text-muted)]">Variables: &#123;&#123;.status&#125;&#125;, &#123;&#123;.monitor_name&#125;&#125;, &#123;&#123;.target&#125;&#125;, &#123;&#123;.latency_ms&#125;&#125;, &#123;&#123;.error&#125;&#125; &bull; Supports &#123;&#123;if eq .status "down"&#125;&#125;</span>
         </div>
         <textarea id="payload-template" name="payload_template" rows="4" required class="w-full px-3 py-2 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-lg text-[var(--text-main)] font-mono text-[11px]"></textarea>
       </div>
@@ -279,10 +280,11 @@
 <script>
 const presets = {
   generic: '{\n  "event": "{{.Event}}",\n  "monitor_name": "{{.MonitorName}}",\n  "target": "{{.Target}}",\n  "status": "{{.Status}}",\n  "latency_ms": {{.LatencyMs}},\n  "error": "{{.ErrorMessage}}",\n  "timestamp": "{{.Timestamp}}"\n}',
-  zulip: 'type=direct&to=["jane@example.io"]&content=🚨 {{.MonitorName}} is now {{.Status}} ({{.LatencyMs}}ms)\\nTarget: {{.Target}}\\nError: {{.ErrorMessage}}',
-  discord: '{\n  "content": "🚨 **{{.MonitorName}}** is now **{{.Status}}** ({{.LatencyMs}}ms)\\nTarget: `{{.Target}}`\\nError: {{.ErrorMessage}}"\n}',
-  slack: '{\n  "text": "🚨 *{{.MonitorName}}* is now *{{.Status}}* | Latency: {{.LatencyMs}}ms\\nTarget: {{.Target}}\\nDetails: {{.ErrorMessage}}"\n}',
-  telegram: '{\n  "chat_id": "REPLACE_WITH_CHAT_ID",\n  "text": "🚨 {{.MonitorName}} is {{.Status}}\\nTarget: {{.Target}}\\nError: {{.ErrorMessage}}"\n}'
+  markdown: '{{if eq .status "down"}}🚨 **ALERT: {{.monitor_name}} is DOWN**{{else}}✅ **RESOLVED: {{.monitor_name}} is UP**{{end}}\n\n* **Target:** `{{.target}}`\n* **Status:** `{{.status}}`\n* **Latency:** `{{.latency_ms}} ms`\n* **Timestamp:** `{{.timestamp}}`{{if .error}}\n* **Error:** `{{.error}}`{{end}}',
+  zulip: 'type=stream&to=alerts&topic=uptime&content="{{if eq .status "down"}}🚨 **ALERT: {{.monitor_name}} is DOWN**{{else}}✅ **RESOLVED: {{.monitor_name}} is UP**{{end}}\\n\\n* **Target:** `{{.target}}`\\n* **Status:** `{{.status}}`\\n* **Latency:** `{{.latency_ms}} ms`\\n* **Timestamp:** `{{.timestamp}}`{{if .error}}\\n* **Error:** `{{.error}}`{{end}}"',
+  discord: '{\n  "content": "{{if eq .status "down"}}🚨 **ALERT: {{.monitor_name}} is DOWN**{{else}}✅ **RESOLVED: {{.monitor_name}} is UP**{{end}}\\n\\n* **Target:** `{{.target}}`\\n* **Status:** `{{.status}}`\\n* **Latency:** `{{.latency_ms}} ms`\\n* **Timestamp:** `{{.timestamp}}`{{if .error}}\\n* **Error:** `{{.error}}`{{end}}"\n}',
+  slack: '{\n  "text": "{{if eq .status "down"}}🚨 *ALERT: {{.monitor_name}} is DOWN*{{else}}✅ *RESOLVED: {{.monitor_name}} is UP*{{end}}\\n\\n*Target:* `{{.target}}`\\n*Status:* `{{.status}}`\\n*Latency:* `{{.latency_ms}} ms`\\n*Timestamp:* `{{.timestamp}}`{{if .error}}\\n*Error:* `{{.error}}`{{end}}"\n}',
+  telegram: '{\n  "chat_id": "REPLACE_WITH_CHAT_ID",\n  "text": "{{if eq .status "down"}}🚨 ALERT: {{.monitor_name}} is DOWN{{else}}✅ RESOLVED: {{.monitor_name}} is UP{{end}}\\n\\nTarget: {{.target}}\\nStatus: {{.status}}\\nLatency: {{.latency_ms}} ms\\nTimestamp: {{.timestamp}}{{if .error}}\\nError: {{.error}}{{end}}"\n}'
 };
 function applyPreset(p) {
   document.getElementById('payload-template').value = presets[p] || presets.generic;

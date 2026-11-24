@@ -2,6 +2,7 @@ package notifier
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -293,5 +294,157 @@ func TestWebhookNotifyRetryLoop(t *testing.T) {
 
 	if got := attempts.Load(); got != 2 {
 		t.Errorf("expected exactly 2 attempts before success, got %d", got)
+	}
+}
+
+func TestUserRequestedPayloadTemplate(t *testing.T) {
+	tmpl := `{{if eq .status "down"}}🚨 **ALERT: {{.monitor_name}} is DOWN**{{else}}✅ **RESOLVED: {{.monitor_name}} is UP**{{end}}
+
+* **Target:** ` + "`{{.target}}`" + `
+* **Status:** ` + "`{{.status}}`" + `
+* **Latency:** ` + "`{{.latency_ms}} ms`" + `
+* **Timestamp:** ` + "`{{.timestamp}}`" + `
+{{if .error}}* **Error:** ` + "`{{.error}}`" + `{{end}}`
+
+	var receivedBody string
+	var receivedContentType string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		b, _ := io.ReadAll(r.Body)
+		receivedBody = string(b)
+		receivedContentType = r.Header.Get("Content-Type")
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	disp := NewDispatcher(nil, nil)
+
+	// Case 1: Down with error
+	wh := &model.AlertWebhook{
+		Name:            "Custom Markdown Webhook",
+		URL:             server.URL,
+		Method:          "POST",
+		PayloadTemplate: tmpl,
+	}
+
+	ctxDown := model.WebhookContext{
+		Event:       "down",
+		MonitorName: "API Gateway",
+		Target:      "https://api.example.com",
+		Status:      "down",
+		LatencyMs:   1234,
+		Timestamp:   "2026-11-07T12:00:00Z",
+		ErrorMessage: "502 Bad Gateway",
+	}
+
+	rendered, err := disp.DispatchWithPayload(context.Background(), wh, ctxDown)
+	if err != nil {
+		t.Fatalf("dispatch failed: %v", err)
+	}
+
+	t.Logf("Rendered payload:\n%s", rendered)
+	t.Logf("Received Body:\n%s", receivedBody)
+	t.Logf("Received Content-Type: %s", receivedContentType)
+
+	// Case 2: In Zulip form-urlencoded format
+	zulipTmpl := `type=stream&to=alerts&topic=uptime&content="{{if eq .status "down"}}🚨 **ALERT: {{.monitor_name}} is DOWN**{{else}}✅ **RESOLVED: {{.monitor_name}} is UP**{{end}}
+
+* **Target:** ` + "`{{.target}}`" + `
+* **Status:** ` + "`{{.status}}`" + `
+* **Latency:** ` + "`{{.latency_ms}} ms`" + `
+* **Timestamp:** ` + "`{{.timestamp}}`" + `
+{{if .error}}* **Error:** ` + "`{{.error}}`" + `{{end}}"`
+
+	var zulipValues url.Values
+	serverZulip := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = r.ParseForm()
+		zulipValues = r.Form
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer serverZulip.Close()
+
+	whZulip := &model.AlertWebhook{
+		Name:            "Zulip Markdown",
+		URL:             serverZulip.URL,
+		Method:          "POST",
+		PayloadTemplate: zulipTmpl,
+	}
+
+	ctxZulip := model.WebhookContext{
+		Event:        "down",
+		MonitorName:  "API Gateway",
+		Target:       "https://api.example.com/health?service=core&env=prod",
+		Status:       "down",
+		LatencyMs:    1234,
+		Timestamp:    "2026-11-07T12:00:00Z",
+		ErrorMessage: "502 Bad Gateway",
+	}
+
+	renderedZulip, err := disp.DispatchWithPayload(context.Background(), whZulip, ctxZulip)
+	if err != nil {
+		t.Fatalf("zulip dispatch failed: %v", err)
+	}
+
+	t.Logf("Zulip rendered: %s", renderedZulip)
+	t.Logf("Zulip parsed content:\n%s", zulipValues.Get("content"))
+	if !strings.Contains(zulipValues.Get("content"), "https://api.example.com/health?service=core&env=prod") {
+		t.Errorf("expected target with = to be preserved in content, got:\n%s", zulipValues.Get("content"))
+	}
+
+	// Case 3: Status UP (recovery without error)
+	ctxUp := model.WebhookContext{
+		Event:        "up",
+		MonitorName:  "API Gateway",
+		Target:       "https://api.example.com",
+		Status:       "up",
+		LatencyMs:    45,
+		Timestamp:    "2026-11-07T12:05:00Z",
+		ErrorMessage: "",
+	}
+
+	renderedUp, err := disp.DispatchWithPayload(context.Background(), wh, ctxUp)
+	if err != nil {
+		t.Fatalf("dispatch up failed: %v", err)
+	}
+
+	t.Logf("Rendered UP payload:\n%s", renderedUp)
+	if !strings.Contains(renderedUp, "✅ **RESOLVED: API Gateway is UP**") {
+		t.Errorf("expected resolved message, got:\n%s", renderedUp)
+	}
+	if strings.Contains(renderedUp, "Error:") {
+		t.Errorf("expected no error line when error is empty, got:\n%s", renderedUp)
+	}
+
+	// Case 4: Discord auto-wrapping of raw markdown
+	var discordBody string
+	var discordContentType string
+	serverDiscord := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		b, _ := io.ReadAll(r.Body)
+		discordBody = string(b)
+		discordContentType = r.Header.Get("Content-Type")
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer serverDiscord.Close()
+
+	whDiscord := &model.AlertWebhook{
+		Name:            "Discord Direct Markdown",
+		URL:             serverDiscord.URL + "/api/webhooks/123/xyz",
+		Method:          "POST",
+		PayloadTemplate: tmpl,
+	}
+
+	_, err = disp.DispatchWithPayload(context.Background(), whDiscord, ctxDown)
+	if err != nil {
+		t.Fatalf("discord dispatch failed: %v", err)
+	}
+
+	if discordContentType != "application/json" {
+		t.Errorf("expected application/json for discord, got %s", discordContentType)
+	}
+	var discordJSON map[string]string
+	if err := json.Unmarshal([]byte(discordBody), &discordJSON); err != nil {
+		t.Fatalf("expected valid JSON for discord body, got: %s (err: %v)", discordBody, err)
+	}
+	if !strings.Contains(discordJSON["content"], "ALERT: API Gateway is DOWN") {
+		t.Errorf("expected discord content to contain alert header, got: %s", discordJSON["content"])
 	}
 }

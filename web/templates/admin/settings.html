@@ -2,13 +2,44 @@
 <div class="space-y-6 max-w-4xl mx-auto">
   <div>
     <h2 class="text-xl font-bold text-[var(--text-main)]">System Settings & Security</h2>
-    <p class="text-xs text-[var(--text-muted)] mt-0.5">Global configuration, access control, and domain routing rules.</p>
+    <p class="text-xs text-[var(--text-muted)] mt-0.5">Global configuration, access control, domain routing rules, and programmatic API access.</p>
   </div>
 
   {{ if .Saved }}
   <div class="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-lg text-emerald-400 text-xs flex items-center justify-between">
     <span>✓ System settings have been updated successfully.</span>
     <a href="/admin/settings" class="underline text-emerald-400/80 hover:text-emerald-300">Dismiss</a>
+  </div>
+  {{ end }}
+
+  {{ if .TokenDeleted }}
+  <div class="p-3 bg-rose-500/10 border border-rose-500/30 rounded-lg text-rose-400 text-xs flex items-center justify-between">
+    <span>✓ API Token has been revoked and deleted.</span>
+    <a href="/admin/settings" class="underline text-rose-400/80 hover:text-rose-300">Dismiss</a>
+  </div>
+  {{ end }}
+
+  {{ if .NewToken }}
+  <!-- Newly Created Token Alert -->
+  <div class="p-4 bg-emerald-500/15 border-2 border-emerald-500/40 rounded-xl space-y-3">
+    <div class="flex items-center gap-2 text-emerald-400 font-bold text-sm">
+      <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+      <span>New API Token Generated: {{ .NewTokenName }}</span>
+    </div>
+    <p class="text-xs text-[var(--text-main)]">
+      Copy this token immediately. <strong>For security reasons, it will not be shown again!</strong>
+    </p>
+    <div class="flex items-center gap-2">
+      <input type="text" id="newTokenValue" readonly value="{{ .NewToken }}"
+             class="w-full px-3 py-2 bg-[var(--bg-card)] border border-emerald-500/50 rounded-lg text-emerald-300 font-mono text-xs select-all">
+      <button type="button" onclick="navigator.clipboard.writeText(document.getElementById('newTokenValue').value); this.innerText='Copied!';"
+              class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold flex-shrink-0 transition-colors">
+        Copy Token
+      </button>
+    </div>
+    <div class="text-[11px] text-[var(--text-muted)] font-mono">
+      Usage: Header <code class="text-emerald-400">Authorization: Bearer {{ .NewToken }}</code> or <code class="text-emerald-400">X-API-Key: {{ .NewToken }}</code>
+    </div>
   </div>
   {{ end }}
 
@@ -58,6 +89,115 @@
         </button>
       </div>
     </form>
+  </div>
+
+  <!-- API Tokens Management Card -->
+  <div class="card p-6 space-y-6">
+    <div class="flex items-start justify-between border-b border-[var(--border-color)] pb-4">
+      <div>
+        <h3 class="text-sm font-bold text-[var(--text-main)] flex items-center gap-2">
+          <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/></svg>
+          API Tokens (REST API v1)
+        </h3>
+        <p class="text-xs text-[var(--text-muted)] mt-1">
+          Manage API keys for programmatic automation, CI/CD pipelines, and external integrations via <code class="bg-[var(--bg-subtle)] px-1 py-0.5 rounded text-[var(--text-main)] font-mono">/api/v1/...</code>.
+        </p>
+      </div>
+      <span class="text-xs px-2.5 py-1 rounded-full font-mono font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+        {{ len .Tokens }} active {{ if eq (len .Tokens) 1 }}token{{ else }}tokens{{ end }}
+      </span>
+    </div>
+
+    <!-- Generate Token Form -->
+    <form method="POST" action="/admin/settings/tokens" class="p-4 bg-[var(--bg-subtle)] rounded-xl border border-[var(--border-color)] space-y-3">
+      <div class="text-xs font-semibold text-[var(--text-main)]">Generate New API Token</div>
+      <div class="flex gap-2">
+        <input type="text"
+               name="name"
+               required
+               placeholder="e.g. GitHub Actions, Prometheus Scraper, Ansible"
+               class="flex-1 px-3 py-2 bg-[var(--bg-card)] border border-[var(--border-color)] rounded-lg text-[var(--text-main)] text-xs placeholder:text-[var(--text-muted)]">
+        <button type="submit" class="btn-primary px-4 py-2 font-semibold text-xs whitespace-nowrap">
+          + Create Token
+        </button>
+      </div>
+      <p class="text-[11px] text-[var(--text-muted)]">
+        Tokens use SHA-256 cryptographic hashing. Pass them via <code class="text-[var(--text-main)]">Authorization: Bearer &lt;token&gt;</code> or <code class="text-[var(--text-main)]">X-API-Key: &lt;token&gt;</code>.
+      </p>
+    </form>
+
+    <!-- Token List Table -->
+    <div class="space-y-2">
+      <h4 class="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">Active Tokens</h4>
+      {{ if .Tokens }}
+      <div class="overflow-x-auto border border-[var(--border-color)] rounded-lg">
+        <table class="w-full text-left text-xs">
+          <thead class="bg-[var(--bg-subtle)] text-[var(--text-muted)] border-b border-[var(--border-color)]">
+            <tr>
+              <th class="p-3 font-semibold">Name</th>
+              <th class="p-3 font-semibold">Token Prefix</th>
+              <th class="p-3 font-semibold">Created</th>
+              <th class="p-3 font-semibold">Last Used</th>
+              <th class="p-3 font-semibold text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-[var(--border-color)] font-mono text-[11px]">
+            {{ range .Tokens }}
+            <tr class="hover:bg-[var(--bg-subtle)]/50 transition-colors">
+              <td class="p-3 font-sans font-medium text-[var(--text-main)] text-xs">{{ .Name }}</td>
+              <td class="p-3 text-[var(--text-muted)]"><code class="bg-[var(--bg-card)] px-1.5 py-0.5 rounded border border-[var(--border-color)]">{{ .TokenPrefix }}</code></td>
+              <td class="p-3 text-[var(--text-muted)] font-sans">{{ .CreatedAt.Format "Jan 02, 2006 15:04" }}</td>
+              <td class="p-3 font-sans">
+                {{ if .LastUsedAt }}
+                  <span class="text-emerald-400">{{ .LastUsedAt.Format "Jan 02, 2006 15:04" }}</span>
+                {{ else }}
+                  <span class="text-[var(--text-muted)]">Never</span>
+                {{ end }}
+              </td>
+              <td class="p-3 text-right">
+                <form method="POST" action="/admin/settings/tokens/{{ .ID }}/delete" onsubmit="return confirm('Revoke and delete API token {{ .Name }}? Any integration using this token will stop working.');" class="inline">
+                  <input type="hidden" name="id" value="{{ .ID }}">
+                  <button type="submit" class="px-2 py-1 text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 rounded transition-colors text-xs font-sans">
+                    Revoke
+                  </button>
+                </form>
+              </td>
+            </tr>
+            {{ end }}
+          </tbody>
+        </table>
+      </div>
+      {{ else }}
+      <div class="p-6 text-center text-xs text-[var(--text-muted)] border border-dashed border-[var(--border-color)] rounded-lg">
+        No API tokens generated yet. Create one above to interact with the REST API.
+      </div>
+      {{ end }}
+    </div>
+
+    <!-- Quick API Documentation -->
+    <div class="p-4 bg-[var(--bg-subtle)] rounded-xl border border-[var(--border-color)] space-y-2 text-xs">
+      <div class="font-bold text-[var(--text-main)]">Quick REST API Reference</div>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-2 text-[11px] font-mono">
+        <div class="p-2 bg-[var(--bg-card)] rounded border border-[var(--border-color)]">
+          <span class="text-emerald-400 font-bold">GET</span> /api/v1/health <span class="text-[var(--text-muted)] font-sans">(Public)</span>
+        </div>
+        <div class="p-2 bg-[var(--bg-card)] rounded border border-[var(--border-color)]">
+          <span class="text-emerald-400 font-bold">GET</span> /api/v1/summary
+        </div>
+        <div class="p-2 bg-[var(--bg-card)] rounded border border-[var(--border-color)]">
+          <span class="text-emerald-400 font-bold">GET / POST</span> /api/v1/monitors
+        </div>
+        <div class="p-2 bg-[var(--bg-card)] rounded border border-[var(--border-color)]">
+          <span class="text-emerald-400 font-bold">GET / POST</span> /api/v1/status-pages
+        </div>
+        <div class="p-2 bg-[var(--bg-card)] rounded border border-[var(--border-color)]">
+          <span class="text-emerald-400 font-bold">GET / POST</span> /api/v1/incidents
+        </div>
+        <div class="p-2 bg-[var(--bg-card)] rounded border border-[var(--border-color)]">
+          <span class="text-rose-400 font-bold">DELETE</span> /api/v1/monitors/{id}
+        </div>
+      </div>
+    </div>
   </div>
 </div>
 {{ end }}

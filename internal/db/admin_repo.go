@@ -13,14 +13,14 @@ import (
 )
 
 type AdminRepo struct {
-	db *sql.DB
+	db *DB
 }
 
-func NewAdminRepo(db *sql.DB) *AdminRepo {
+func NewAdminRepo(db *DB) *AdminRepo {
 	return &AdminRepo{db: db}
 }
 
-func (r *AdminRepo) DB() *sql.DB {
+func (r *AdminRepo) DB() *DB {
 	return r.db
 }
 

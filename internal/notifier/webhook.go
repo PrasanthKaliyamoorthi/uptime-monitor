@@ -221,6 +221,19 @@ func (d *Dispatcher) DispatchWithPayload(ctx context.Context, w *model.AlertWebh
 			"urlquery": url.QueryEscape,
 			"upper":    strings.ToUpper,
 			"lower":    strings.ToLower,
+			"eq": func(a, b any) bool {
+				sa := fmt.Sprintf("%v", a)
+				sb := fmt.Sprintf("%v", b)
+				return sa == sb || strings.EqualFold(sa, sb)
+			},
+			"ne": func(a, b any) bool {
+				sa := fmt.Sprintf("%v", a)
+				sb := fmt.Sprintf("%v", b)
+				return sa != sb && !strings.EqualFold(sa, sb)
+			},
+			"contains":  strings.Contains,
+			"hasPrefix": strings.HasPrefix,
+			"hasSuffix": strings.HasSuffix,
 		}).
 		Parse(tmplStr)
 	if err != nil {
@@ -239,11 +252,46 @@ func (d *Dispatcher) DispatchWithPayload(ctx context.Context, w *model.AlertWebh
 		method = "POST"
 	}
 
-	// Determine Content-Type: default to application/json, or application/x-www-form-urlencoded if form-formatted
+	// Determine Content-Type: default to application/json, or application/x-www-form-urlencoded if form-formatted,
+	// or text/plain if raw markdown / plain text
 	bodyStr := strings.TrimSpace(payloadStr)
 	contentType := "application/json"
-	if !strings.HasPrefix(bodyStr, "{") && !strings.HasPrefix(bodyStr, "[") && strings.Contains(bodyStr, "=") {
+
+	isJSON := strings.HasPrefix(bodyStr, "{") || strings.HasPrefix(bodyStr, "[")
+	isForm := false
+	if !isJSON {
+		// Check if it's form-formatted like key=val or key1=val1&key2=val2
+		if idx := strings.Index(bodyStr, "="); idx != -1 {
+			firstKey := strings.TrimSpace(bodyStr[:idx])
+			if isValidFormKey(firstKey) {
+				isForm = true
+			}
+		}
+	}
+
+	if isJSON {
+		contentType = "application/json"
+	} else if isForm {
 		contentType = "application/x-www-form-urlencoded"
+	} else {
+		// Raw markdown or plain text template (e.g. {{if eq .status ...}})
+		// If sending to Discord or Slack, automatically wrap in their native JSON format:
+		loweredURL := strings.ToLower(w.URL)
+		if strings.Contains(loweredURL, "discord.com") || strings.Contains(loweredURL, "discordapp.com") || strings.Contains(loweredURL, "/api/webhooks/") {
+			wrappedJSON, _ := json.Marshal(map[string]string{"content": payloadStr})
+			payloadStr = string(wrappedJSON)
+			buf.Reset()
+			buf.WriteString(payloadStr)
+			contentType = "application/json"
+		} else if strings.Contains(loweredURL, "slack.com") {
+			wrappedJSON, _ := json.Marshal(map[string]string{"text": payloadStr})
+			payloadStr = string(wrappedJSON)
+			buf.Reset()
+			buf.WriteString(payloadStr)
+			contentType = "application/json"
+		} else {
+			contentType = "text/plain; charset=utf-8"
+		}
 	}
 
 	// Apply custom headers (can override Content-Type or add auth tokens)
@@ -327,12 +375,32 @@ func unescapeFormValue(val string) string {
 	return val
 }
 
+func isValidFormKey(k string) bool {
+	if len(k) == 0 || len(k) > 64 {
+		return false
+	}
+	if strings.ContainsAny(k, " \t\r\n*:/?#`<>~!") {
+		return false
+	}
+	first := k[0]
+	return (first >= 'a' && first <= 'z') || (first >= 'A' && first <= 'Z') || first == '_'
+}
+
 func parseFormPayload(raw string) []formField {
 	var fields []formField
 	var current strings.Builder
 	inQuotes := false
+	quoteChar := byte(0)
 
-	flushPart := func(part string) {
+	appendContinuation := func(text string, delim string) {
+		if len(fields) > 0 {
+			fields[len(fields)-1].val += delim + unescapeFormValue(text)
+		} else {
+			fields = append(fields, formField{key: text, val: ""})
+		}
+	}
+
+	flushPart := func(part string, delim string) {
 		part = strings.TrimSpace(part)
 		if part == "" {
 			return
@@ -340,30 +408,41 @@ func parseFormPayload(raw string) []formField {
 		idx := strings.Index(part, "=")
 		if idx != -1 {
 			k := strings.TrimSpace(part[:idx])
-			v := strings.TrimSpace(part[idx+1:])
-			fields = append(fields, formField{key: k, val: unescapeFormValue(v)})
-		} else if len(fields) > 0 {
-			// Multiline continuation of previous field
-			fields[len(fields)-1].val += "\n" + unescapeFormValue(part)
-		} else {
-			fields = append(fields, formField{key: part, val: ""})
+			if isValidFormKey(k) {
+				v := strings.TrimSpace(part[idx+1:])
+				fields = append(fields, formField{key: k, val: unescapeFormValue(v)})
+				return
+			}
 		}
+		appendContinuation(part, delim)
 	}
 
+	lastDelim := "\n"
 	for i := 0; i < len(raw); i++ {
 		c := raw[i]
-		if c == '"' && (i == 0 || raw[i-1] != '\\') {
-			inQuotes = !inQuotes
+		if (c == '"' || c == '\'') && (i == 0 || raw[i-1] != '\\') {
+			if !inQuotes {
+				inQuotes = true
+				quoteChar = c
+			} else if c == quoteChar {
+				inQuotes = false
+				quoteChar = 0
+			}
 			current.WriteByte(c)
 		} else if (c == '&' || c == '\n') && !inQuotes {
-			flushPart(current.String())
+			flushPart(current.String(), lastDelim)
 			current.Reset()
+			if c == '&' {
+				lastDelim = "&"
+			} else {
+				lastDelim = "\n"
+			}
 		} else {
 			current.WriteByte(c)
 		}
 	}
 	if current.Len() > 0 {
-		flushPart(current.String())
+		flushPart(current.String(), lastDelim)
 	}
 	return fields
 }

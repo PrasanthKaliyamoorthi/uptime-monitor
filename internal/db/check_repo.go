@@ -11,10 +11,10 @@ import (
 )
 
 type CheckRepo struct {
-	db *sql.DB
+	db *DB
 }
 
-func NewCheckRepo(db *sql.DB) *CheckRepo {
+func NewCheckRepo(db *DB) *CheckRepo {
 	return &CheckRepo{db: db}
 }
 

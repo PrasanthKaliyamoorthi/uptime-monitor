@@ -11,10 +11,10 @@ const (
 )
 
 type SettingsRepo struct {
-	db *sql.DB
+	db *DB
 }
 
-func NewSettingsRepo(db *sql.DB) *SettingsRepo {
+func NewSettingsRepo(db *DB) *SettingsRepo {
 	return &SettingsRepo{db: db}
 }
 

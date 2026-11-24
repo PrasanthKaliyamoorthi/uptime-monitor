@@ -10,10 +10,10 @@ import (
 )
 
 type BlacklistRepo struct {
-	db *sql.DB
+	db *DB
 }
 
-func NewBlacklistRepo(db *sql.DB) *BlacklistRepo {
+func NewBlacklistRepo(db *DB) *BlacklistRepo {
 	return &BlacklistRepo{db: db}
 }
 
@@ -128,7 +128,7 @@ func (r *BlacklistRepo) RecordFailedAttempt(ip string, threshold int, reason str
 // ResetAttempts clears the failed attempt counter for an IP if not blacklisted
 func (r *BlacklistRepo) ResetAttempts(ip string) error {
 	ip = cleanIP(ip)
-	_, err := r.db.Exec("DELETE FROM admin_blacklist WHERE ip = ? AND blacklisted = 0", ip)
+	_, err := r.db.Exec("DELETE FROM admin_blacklist WHERE ip = ? AND blacklisted = FALSE", ip)
 	return err
 }
 

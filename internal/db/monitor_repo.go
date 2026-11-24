@@ -12,10 +12,10 @@ import (
 )
 
 type MonitorRepo struct {
-	db *sql.DB
+	db *DB
 }
 
-func NewMonitorRepo(db *sql.DB) *MonitorRepo {
+func NewMonitorRepo(db *DB) *MonitorRepo {
 	return &MonitorRepo{db: db}
 }
 
@@ -167,7 +167,7 @@ func (r *MonitorRepo) GetByStatusPage(statusPageID string) ([]model.Monitor, err
 }
 
 func (r *MonitorRepo) GetActive() ([]model.Monitor, error) {
-	rows, err := r.db.Query("SELECT " + monitorColumns + " FROM monitors WHERE is_active = 1 ORDER BY created_at ASC")
+	rows, err := r.db.Query("SELECT " + monitorColumns + " FROM monitors WHERE is_active = TRUE ORDER BY created_at ASC")
 	if err != nil {
 		return nil, err
 	}

@@ -39,19 +39,32 @@ func NewStatusPageHandler(
 }
 
 func (h *StatusPageHandler) ServeStatusPage(w http.ResponseWriter, r *http.Request, page *model.StatusPage) {
-	// Fetch monitors belonging directly to this page
-	targetMonitors, err := h.monitorRepo.GetByStatusPage(page.ID)
-	if err != nil || len(targetMonitors) == 0 {
-		mappings, _ := h.statusPageRepo.GetMonitorsForPage(page.ID)
-		if len(mappings) > 0 {
-			for _, mapItem := range mappings {
-				if m, err := h.monitorRepo.GetByID(mapItem.MonitorID); err == nil && m.IsActive {
-					targetMonitors = append(targetMonitors, *m)
-				}
+	seen := make(map[string]bool)
+	var targetMonitors []model.Monitor
+
+	// 1. Monitors mapped via status_page_monitors (custom groups & ordering)
+	mappings, _ := h.statusPageRepo.GetMonitorsForPage(page.ID)
+	for _, mapItem := range mappings {
+		if m, err := h.monitorRepo.GetByID(mapItem.MonitorID); err == nil && m.IsActive {
+			if !seen[m.ID] {
+				seen[m.ID] = true
+				targetMonitors = append(targetMonitors, *m)
 			}
-		} else if page.IsDefault {
-			targetMonitors, _ = h.monitorRepo.GetActive()
 		}
+	}
+
+	// 2. Monitors having status_page_id set directly to this page
+	directMons, _ := h.monitorRepo.GetByStatusPage(page.ID)
+	for _, m := range directMons {
+		if m.IsActive && !seen[m.ID] {
+			seen[m.ID] = true
+			targetMonitors = append(targetMonitors, m)
+		}
+	}
+
+	// 3. Fallback for default page if no monitors configured
+	if len(targetMonitors) == 0 && page.IsDefault {
+		targetMonitors, _ = h.monitorRepo.GetActive()
 	}
 
 	historyDays := page.HistoryDays

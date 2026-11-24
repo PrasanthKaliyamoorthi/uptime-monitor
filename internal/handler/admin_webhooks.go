@@ -101,15 +101,15 @@ func (h *AdminWebhooksHandler) ServeTest(w http.ResponseWriter, r *http.Request)
 	}
 
 	sampleContext := model.WebhookContext{
-		Event:          "test_ping",
+		Event:          "down",
 		MonitorID:      "test-mon-001",
 		MonitorName:    "Sample Service",
 		Target:         "https://example.com/api",
 		Protocol:       "https",
-		Status:         "operational",
-		PreviousStatus: "degraded",
-		LatencyMs:      42,
-		ErrorMessage:   "",
+		Status:         "down",
+		PreviousStatus: "up",
+		LatencyMs:      124,
+		ErrorMessage:   "connection timeout (5000ms)",
 		Timestamp:      time.Now().UTC().Format(time.RFC3339),
 	}
 

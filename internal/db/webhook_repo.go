@@ -12,10 +12,10 @@ import (
 )
 
 type WebhookRepo struct {
-	db *sql.DB
+	db *DB
 }
 
-func NewWebhookRepo(db *sql.DB) *WebhookRepo {
+func NewWebhookRepo(db *DB) *WebhookRepo {
 	return &WebhookRepo{db: db}
 }
 
@@ -105,7 +105,7 @@ func (r *WebhookRepo) GetAll() ([]model.AlertWebhook, error) {
 }
 
 func (r *WebhookRepo) GetActive() ([]model.AlertWebhook, error) {
-	rows, err := r.db.Query("SELECT " + webhookColumns + " FROM alert_webhooks WHERE is_active = 1")
+	rows, err := r.db.Query("SELECT " + webhookColumns + " FROM alert_webhooks WHERE is_active = TRUE")
 	if err != nil {
 		return nil, err
 	}

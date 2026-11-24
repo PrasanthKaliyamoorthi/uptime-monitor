@@ -16,6 +16,7 @@ type Router struct {
 	adminRepo      *db.AdminRepo
 	blacklistRepo  *db.BlacklistRepo
 	settingsRepo   *db.SettingsRepo
+	tokenRepo      *db.APITokenRepo
 	statusPageRepo *db.StatusPageRepo
 	sessionManager *SessionManager
 
@@ -30,6 +31,7 @@ type Router struct {
 	adminWebhooksHandler *AdminWebhooksHandler
 	adminBackupHandler   *AdminBackupHandler
 	adminSettingsHandler *AdminSettingsHandler
+	apiHandler           *APIHandler
 	faviconHandler       *FaviconHandler
 
 	staticHandler http.Handler
@@ -51,9 +53,11 @@ func NewRouter(
 ) (*Router, error) {
 	var sessRepo *db.SessionRepo
 	var settingsRepo *db.SettingsRepo
+	var tokenRepo *db.APITokenRepo
 	if aRepo != nil && aRepo.DB() != nil {
 		sessRepo = db.NewSessionRepo(aRepo.DB())
 		settingsRepo = db.NewSettingsRepo(aRepo.DB())
+		tokenRepo = db.NewAPITokenRepo(aRepo.DB())
 	}
 	sm := NewSessionManager(sessRepo)
 	tr, err := NewTemplateRenderer()
@@ -68,7 +72,10 @@ func NewRouter(
 	}
 	staticServer := http.StripPrefix("/static/", http.FileServer(http.FS(staticSub)))
 
-	notifDispatcher := disp.(*checker.Coordinator) // or notifier.Dispatcher
+	var notifDispatcher *checker.Coordinator
+	if c, ok := disp.(*checker.Coordinator); ok {
+		notifDispatcher = c
+	}
 	_ = notifDispatcher
 
 	maxAttempts := 5
@@ -80,6 +87,7 @@ func NewRouter(
 		adminRepo:            aRepo,
 		blacklistRepo:        bRepo,
 		settingsRepo:         settingsRepo,
+		tokenRepo:            tokenRepo,
 		statusPageRepo:       spRepo,
 		sessionManager:       sm,
 		setupHandler:         NewSetupHandler(aRepo, spRepo, sm, tr, log),
@@ -92,7 +100,8 @@ func NewRouter(
 		adminLogsHandler:     NewAdminLogsHandler(lRepo, bRepo, tr, log),
 		adminWebhooksHandler: nil, // set below
 		adminBackupHandler:   NewAdminBackupHandler(mRepo, spRepo, wRepo, tr, log),
-		adminSettingsHandler: NewAdminSettingsHandler(settingsRepo, tr, log),
+		adminSettingsHandler: NewAdminSettingsHandler(settingsRepo, tokenRepo, tr, log),
+		apiHandler:           NewAPIHandler(tokenRepo, mRepo, cRepo, spRepo, incRepo, sched, log),
 		faviconHandler:       NewFaviconHandler(spRepo),
 		staticHandler:        staticServer,
 	}, nil
@@ -116,6 +125,14 @@ func (rt *Router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if path == "/favicon.ico" || path == "/favicon.png" || path == "/api/favicon" {
 		rt.faviconHandler.ServeHTTP(w, r)
 		return
+	}
+
+	// 1c. REST API v1 routes (Token authenticated)
+	if strings.HasPrefix(path, "/api/v1/") || path == "/api/v1" {
+		if rt.apiHandler != nil {
+			rt.apiHandler.ServeHTTP(w, r)
+			return
+		}
 	}
 
 	// Admin Allowed Domain Gate:
@@ -437,7 +454,7 @@ func (rt *Router) routeAdmin(w http.ResponseWriter, r *http.Request, path string
 		return
 	}
 
-	// Settings
+	// Settings & Tokens
 	if path == "/admin/settings" {
 		if r.Method == http.MethodPost {
 			rt.adminSettingsHandler.ServeUpdate(w, r)
@@ -445,6 +462,20 @@ func (rt *Router) routeAdmin(w http.ResponseWriter, r *http.Request, path string
 		}
 		rt.adminSettingsHandler.ServeSettings(w, r)
 		return
+	}
+	if path == "/admin/settings/tokens" {
+		if r.Method == http.MethodPost {
+			rt.adminSettingsHandler.ServeCreateToken(w, r)
+			return
+		}
+		http.Redirect(w, r, "/admin/settings", http.StatusFound)
+		return
+	}
+	if strings.HasPrefix(path, "/admin/settings/tokens/") && strings.HasSuffix(path, "/delete") {
+		if r.Method == http.MethodPost {
+			rt.adminSettingsHandler.ServeDeleteToken(w, r)
+			return
+		}
 	}
 
 	http.NotFound(w, r)

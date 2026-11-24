@@ -6,8 +6,10 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
+	"time"
 
 	"uptime-monitor/internal/checker"
 	"uptime-monitor/internal/db"
@@ -612,8 +614,16 @@ func TestIncidentLifecycleCustomDatesAndPageHistoryDays(t *testing.T) {
 		t.Errorf("expected page.HistoryDays = 14, got %d", page.HistoryDays)
 	}
 
-	// 3. Create Incident with backdated created_at
-	formInc := "status_page_id=" + page.ID + "&title=Core+DB+Lag&status=investigating&severity=major&created_at=2026-11-01T10:00&message=Replication+lag+spiked+to+45s"
+	// 3. Create Incident with backdated created_at (relative to now, within 14 days)
+	now := time.Now().UTC()
+	tCreate := now.Add(-3 * 24 * time.Hour).Truncate(time.Minute)
+	tCreateStr := tCreate.Format("2006-01-02T15:04")
+	tUpdate := now.Add(-2 * 24 * time.Hour).Truncate(time.Minute)
+	tUpdateStr := tUpdate.Format("2006-01-02T15:04")
+	tResolved := now.Add(-1 * 24 * time.Hour).Truncate(time.Minute)
+	tResolvedStr := tResolved.Format("2006-01-02T15:04")
+
+	formInc := "status_page_id=" + page.ID + "&title=Core+DB+Lag&status=investigating&severity=major&created_at=" + url.QueryEscape(tCreateStr) + "&message=Replication+lag+spiked+to+45s"
 	reqInc := httptest.NewRequest("POST", "/admin/incidents", strings.NewReader(formInc))
 	reqInc.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	reqInc.AddCookie(adminCookie)
@@ -628,15 +638,15 @@ func TestIncidentLifecycleCustomDatesAndPageHistoryDays(t *testing.T) {
 		t.Fatalf("expected 1 incident, got %d", len(incs))
 	}
 	inc := incs[0]
-	if inc.CreatedAt.Format("2006-01-02T15:04") != "2026-11-01T10:00" {
-		t.Errorf("expected backdated created_at '2026-11-01T10:00', got '%s'", inc.CreatedAt.Format("2006-01-02T15:04"))
+	if inc.CreatedAt.Format("2006-01-02T15:04") != tCreateStr {
+		t.Errorf("expected backdated created_at '%s', got '%s'", tCreateStr, inc.CreatedAt.Format("2006-01-02T15:04"))
 	}
-	if len(inc.Updates) != 1 || inc.Updates[0].CreatedAt.Format("2006-01-02T15:04") != "2026-11-01T10:00" {
+	if len(inc.Updates) != 1 || inc.Updates[0].CreatedAt.Format("2006-01-02T15:04") != tCreateStr {
 		t.Errorf("expected initial update to inherit created_at, got updates: %+v", inc.Updates)
 	}
 
 	// 4. Add retroactive update with custom time
-	formUp := "status=monitoring&message=Applied+index+patch;+replication+caught+up&created_at=2026-11-01T11:30"
+	formUp := "status=monitoring&message=Applied+index+patch;+replication+caught+up&created_at=" + url.QueryEscape(tUpdateStr)
 	reqUp := httptest.NewRequest("POST", "/admin/incidents/"+inc.ID+"/update", strings.NewReader(formUp))
 	reqUp.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	reqUp.AddCookie(adminCookie)
@@ -647,12 +657,12 @@ func TestIncidentLifecycleCustomDatesAndPageHistoryDays(t *testing.T) {
 	if len(incWithUp.Updates) != 2 {
 		t.Fatalf("expected 2 updates, got %d", len(incWithUp.Updates))
 	}
-	if incWithUp.Updates[0].CreatedAt.Format("2006-01-02T15:04") != "2026-11-01T11:30" {
-		t.Errorf("expected retroactive update time '2026-11-01T11:30', got '%s'", incWithUp.Updates[0].CreatedAt.Format("2006-01-02T15:04"))
+	if incWithUp.Updates[0].CreatedAt.Format("2006-01-02T15:04") != tUpdateStr {
+		t.Errorf("expected retroactive update time '%s', got '%s'", tUpdateStr, incWithUp.Updates[0].CreatedAt.Format("2006-01-02T15:04"))
 	}
 
 	// 5. Update overall incident later via /edit
-	formEdit := "title=Core+DB+Replication+Lag+%26+Maintenance&severity=maintenance&status=resolved&created_at=2026-11-01T09:45&resolved_at=2026-11-01T12:00&scheduled_start=2026-11-01T09:30&scheduled_end=2026-11-01T12:15"
+	formEdit := "title=Core+DB+Replication+Lag+%26+Maintenance&severity=maintenance&status=resolved&created_at=" + url.QueryEscape(tCreateStr) + "&resolved_at=" + url.QueryEscape(tResolvedStr) + "&scheduled_start=" + url.QueryEscape(tCreateStr) + "&scheduled_end=" + url.QueryEscape(tResolvedStr)
 	reqEdit := httptest.NewRequest("POST", "/admin/incidents/"+inc.ID+"/edit", strings.NewReader(formEdit))
 	reqEdit.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	reqEdit.AddCookie(adminCookie)
@@ -672,11 +682,11 @@ func TestIncidentLifecycleCustomDatesAndPageHistoryDays(t *testing.T) {
 	if !updatedInc.IsMaintenance {
 		t.Errorf("expected is_maintenance = true")
 	}
-	if updatedInc.CreatedAt.Format("2006-01-02T15:04") != "2026-11-01T09:45" {
-		t.Errorf("expected updated created_at '2026-11-01T09:45', got '%s'", updatedInc.CreatedAt.Format("2006-01-02T15:04"))
+	if updatedInc.CreatedAt.Format("2006-01-02T15:04") != tCreateStr {
+		t.Errorf("expected updated created_at '%s', got '%s'", tCreateStr, updatedInc.CreatedAt.Format("2006-01-02T15:04"))
 	}
-	if updatedInc.ResolvedAt == nil || updatedInc.ResolvedAt.Format("2006-01-02T15:04") != "2026-11-01T12:00" {
-		t.Errorf("expected resolved_at '2026-11-01T12:00', got '%v'", updatedInc.ResolvedAt)
+	if updatedInc.ResolvedAt == nil || updatedInc.ResolvedAt.Format("2006-01-02T15:04") != tResolvedStr {
+		t.Errorf("expected resolved_at '%s', got '%v'", tResolvedStr, updatedInc.ResolvedAt)
 	}
 
 	// 6. Query public status page: verify 14 days and timeline resolution

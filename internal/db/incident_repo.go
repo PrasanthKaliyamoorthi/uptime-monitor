@@ -12,10 +12,10 @@ import (
 )
 
 type IncidentRepo struct {
-	db *sql.DB
+	db *DB
 }
 
-func NewIncidentRepo(db *sql.DB) *IncidentRepo {
+func NewIncidentRepo(db *DB) *IncidentRepo {
 	return &IncidentRepo{db: db}
 }
 

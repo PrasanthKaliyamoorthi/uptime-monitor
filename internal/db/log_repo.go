@@ -10,10 +10,10 @@ import (
 )
 
 type LogRepo struct {
-	db *sql.DB
+	db *DB
 }
 
-func NewLogRepo(db *sql.DB) *LogRepo {
+func NewLogRepo(db *DB) *LogRepo {
 	return &LogRepo{db: db}
 }
 

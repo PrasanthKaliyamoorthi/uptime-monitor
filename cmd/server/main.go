@@ -23,7 +23,9 @@ import (
 func main() {
 	var (
 		portFlag          = flag.Int("port", 8080, "HTTP server port")
-		dbPathFlag        = flag.String("db", "uptime.db", "SQLite database file path")
+		dbPathFlag        = flag.String("db", "uptime.db", "SQLite database file path or connection string")
+		dbURLFlag         = flag.String("db-url", "", "Database connection URL (PostgreSQL or SQLite, e.g. postgres://user:pass@host:5432/db)")
+		dbTypeFlag        = flag.String("db-type", "", "Database driver override ('sqlite' or 'postgres')")
 		workersFlag       = flag.Int("workers", 20, "Maximum concurrent background check workers")
 		resetAdminFlag    = flag.Bool("reset-admin", false, "Reset the administrator password from the command line")
 		adminUserFlag     = flag.String("admin-user", "", "Username of the admin account to reset (optional)")
@@ -37,10 +39,15 @@ func main() {
 	)
 	flag.Parse()
 
-	// Environment variable overrides
-	dbPath := *dbPathFlag
+	// Connection string resolution
+	connStr := *dbPathFlag
 	if envDB := os.Getenv("DB_PATH"); envDB != "" {
-		dbPath = envDB
+		connStr = envDB
+	}
+	if *dbURLFlag != "" {
+		connStr = *dbURLFlag
+	} else if envURL := os.Getenv("DATABASE_URL"); envURL != "" {
+		connStr = envURL
 	}
 
 	port := *portFlag
@@ -51,10 +58,15 @@ func main() {
 		}
 	}
 
-	// Initialize SQLite Database
-	database, err := db.InitDB(dbPath)
+	var driverOverrides []string
+	if *dbTypeFlag != "" {
+		driverOverrides = append(driverOverrides, *dbTypeFlag)
+	}
+
+	// Initialize Database (SQLite or PostgreSQL)
+	database, err := db.InitDB(connStr, driverOverrides...)
 	if err != nil {
-		log.Fatalf("[Main] Failed to initialize database at %s: %v", dbPath, err)
+		log.Fatalf("[Main] Failed to initialize database (%s): %v", connStr, err)
 	}
 	defer database.Close()
 
@@ -233,7 +245,7 @@ func main() {
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
 
 	go func() {
-		sysLogger.Info("system", fmt.Sprintf("Uptime Monitor started on port %d (db: %s)", port, dbPath), nil)
+		sysLogger.Info("system", fmt.Sprintf("Uptime Monitor started on port %d (driver: %s, target: %s)", port, database.Driver, connStr), nil)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("[Main] Server error: %v", err)
 		}
